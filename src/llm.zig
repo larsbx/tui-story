@@ -127,29 +127,104 @@ pub const LLMClient = struct {
     }
 
     fn makeAPIRequest(self: *LLMClient, prompt: []const u8) ![]const u8 {
-        _ = prompt;
+        const api_key = self.api_key orelse return error.MissingAPIKey;
 
-        // TODO: Implement actual HTTP request with timeout
-        // This would include:
-        // 1. Creating HTTP request with headers (API key, content-type)
-        // 2. Setting timeout on the request
-        // 3. Sending request and reading response
-        // 4. Handling various HTTP status codes
-        //
-        // Example structure:
-        // var req = try self.http_client.open(.POST, self.api_endpoint, .{
-        //     .server_header_buffer = &server_header_buffer,
-        // });
-        // defer req.deinit();
-        // req.transfer_encoding = .chunked;
-        //
-        // Set timeout using a timer or similar mechanism
-        // const timeout_timer = try std.time.Timer.start();
-        //
-        // Write request body and read response with timeout checking
+        // Start timeout timer
+        const start_time = std.time.milliTimestamp();
 
-        // For now, return empty JSON array
-        return try self.allocator.dupe(u8, "[]");
+        // Parse the endpoint URI
+        const uri = try std.Uri.parse(self.api_endpoint);
+
+        // Prepare request buffer
+        var server_header_buffer: [8192]u8 = undefined;
+
+        // Open HTTP request
+        var req = try self.http_client.open(.POST, uri, .{
+            .server_header_buffer = &server_header_buffer,
+        });
+        defer req.deinit();
+
+        // Set headers
+        req.transfer_encoding = .chunked;
+        try req.headers.append("x-api-key", api_key);
+        try req.headers.append("anthropic-version", "2023-06-01");
+        try req.headers.append("content-type", "application/json");
+
+        // Build request body
+        var request_body = std.ArrayList(u8).init(self.allocator);
+        defer request_body.deinit();
+
+        const writer = request_body.writer();
+        try writer.writeAll("{\"model\":\"claude-3-5-sonnet-20241022\",\"max_tokens\":4096,\"messages\":[{\"role\":\"user\",\"content\":");
+
+        // Escape the prompt as JSON string
+        try std.json.encodeJsonString(prompt, .{}, writer);
+        try writer.writeAll("}]}");
+
+        // Check timeout before sending
+        if (std.time.milliTimestamp() - start_time > self.config.timeout_ms) {
+            return error.Timeout;
+        }
+
+        // Send request
+        try req.send();
+        try req.writeAll(request_body.items);
+        try req.finish();
+
+        // Wait for response
+        try req.wait();
+
+        // Check timeout after receiving response
+        if (std.time.milliTimestamp() - start_time > self.config.timeout_ms) {
+            return error.Timeout;
+        }
+
+        // Check HTTP status
+        if (req.response.status != .ok) {
+            log.err("HTTP request failed with status: {}", .{req.response.status});
+            return error.HTTPRequestFailed;
+        }
+
+        // Read response body
+        var response_body = std.ArrayList(u8).init(self.allocator);
+        errdefer response_body.deinit();
+
+        const reader = req.reader();
+        try reader.readAllArrayList(&response_body, 1024 * 1024); // 1MB max
+
+        // Parse JSON to extract content
+        const response_json = try std.json.parseFromSlice(
+            std.json.Value,
+            self.allocator,
+            response_body.items,
+            .{},
+        );
+        defer response_json.deinit();
+
+        // Extract the text content from the response
+        // Expected format: {"content": [{"type": "text", "text": "..."}], ...}
+        const root = response_json.value;
+        if (root != .object) {
+            return error.InvalidResponseFormat;
+        }
+
+        const content_field = root.object.get("content") orelse return error.MissingContentField;
+        if (content_field != .array or content_field.array.items.len == 0) {
+            return error.InvalidContentFormat;
+        }
+
+        const first_content = content_field.array.items[0];
+        if (first_content != .object) {
+            return error.InvalidContentFormat;
+        }
+
+        const text_field = first_content.object.get("text") orelse return error.MissingTextField;
+        if (text_field != .string) {
+            return error.InvalidTextFormat;
+        }
+
+        // Return the text content (which should be the JSON array of relationships)
+        return try self.allocator.dupe(u8, text_field.string);
     }
 
     fn parseResponse(self: *LLMClient, response: []const u8) ![]Relationship {
