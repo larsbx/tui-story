@@ -1,20 +1,37 @@
 const std = @import("std");
 const graph = @import("graph.zig");
 
+const log = std.log.scoped(.llm);
+
+/// Configuration for API resilience
+const APIConfig = struct {
+    max_retries: u8 = 3,
+    timeout_ms: u64 = 30_000, // 30 seconds
+    initial_backoff_ms: u64 = 1_000, // 1 second
+};
+
 pub const LLMClient = struct {
     allocator: std.mem.Allocator,
     api_key: ?[]const u8,
     api_endpoint: []const u8,
     http_client: std.http.Client,
+    config: APIConfig,
 
     pub fn init(allocator: std.mem.Allocator) LLMClient {
         const api_key = std.process.getEnvVarOwned(allocator, "ANTHROPIC_API_KEY") catch null;
+
+        if (api_key) |_| {
+            log.info("LLM client initialized with API key", .{});
+        } else {
+            log.warn("LLM client initialized without API key - using mock data", .{});
+        }
 
         return .{
             .allocator = allocator,
             .api_key = api_key,
             .api_endpoint = "https://api.anthropic.com/v1/messages",
             .http_client = std.http.Client{ .allocator = allocator },
+            .config = .{},
         };
     }
 
@@ -30,18 +47,24 @@ pub const LLMClient = struct {
         group1: []const []const u8,
         group2: []const []const u8,
     ) ![]Relationship {
+        log.info("Analyzing relationships between {} and {} ideas", .{ group1.len, group2.len });
+
         // For now, return mock data if no API key is set
         // In production, this would make real API calls
         if (self.api_key == null) {
+            log.debug("Using mock relationship generation", .{});
             return try self.getMockRelationships(group1, group2);
         }
 
+        log.debug("Building LLM prompt", .{});
         const prompt = try self.buildPrompt(group1, group2);
         defer self.allocator.free(prompt);
 
+        log.info("Calling LLM API", .{});
         const response = try self.callAPI(prompt);
         defer self.allocator.free(response);
 
+        log.debug("Parsing LLM response", .{});
         return try self.parseResponse(response);
     }
 
@@ -76,10 +99,60 @@ pub const LLMClient = struct {
     }
 
     fn callAPI(self: *LLMClient, prompt: []const u8) ![]const u8 {
-        _ = self;
         _ = prompt;
-        // TODO: Implement actual API call
-        // For now, return empty response
+
+        var retries: u8 = 0;
+        var backoff_ms = self.config.initial_backoff_ms;
+
+        while (retries < self.config.max_retries) : (retries += 1) {
+            log.debug("API call attempt {} of {}", .{ retries + 1, self.config.max_retries });
+
+            // TODO: Implement actual API call with timeout
+            // For now, simulate potential transient failures
+            const result = self.makeAPIRequest(prompt) catch |err| {
+                log.warn("API call failed (attempt {}): {}", .{ retries + 1, err });
+
+                if (retries < self.config.max_retries - 1) {
+                    log.info("Retrying after {}ms backoff", .{backoff_ms});
+                    std.time.sleep(backoff_ms * std.time.ns_per_ms);
+                    backoff_ms *= 2; // Exponential backoff
+                    continue;
+                }
+
+                log.err("Max retries exceeded, failing request", .{});
+                return err;
+            };
+
+            log.info("API call successful on attempt {}", .{retries + 1});
+            return result;
+        }
+
+        return error.MaxRetriesExceeded;
+    }
+
+    fn makeAPIRequest(self: *LLMClient, prompt: []const u8) ![]const u8 {
+        _ = prompt;
+
+        // TODO: Implement actual HTTP request with timeout
+        // This would include:
+        // 1. Creating HTTP request with headers (API key, content-type)
+        // 2. Setting timeout on the request
+        // 3. Sending request and reading response
+        // 4. Handling various HTTP status codes
+        //
+        // Example structure:
+        // var req = try self.http_client.open(.POST, self.api_endpoint, .{
+        //     .server_header_buffer = &server_header_buffer,
+        // });
+        // defer req.deinit();
+        // req.transfer_encoding = .chunked;
+        //
+        // Set timeout using a timer or similar mechanism
+        // const timeout_timer = try std.time.Timer.start();
+        //
+        // Write request body and read response with timeout checking
+
+        // For now, return empty JSON array
         return try self.allocator.dupe(u8, "[]");
     }
 
@@ -90,6 +163,7 @@ pub const LLMClient = struct {
     }
 
     fn getMockRelationships(self: *LLMClient, group1: []const []const u8, group2: []const []const u8) ![]Relationship {
+        log.debug("Generating mock relationships", .{});
         var relationships = std.ArrayList(Relationship).init(self.allocator);
 
         // Generate some mock relationships between ideas in the two groups
