@@ -1,5 +1,7 @@
 # Semantic Relationship Graph TUI
 
+![CI](https://github.com/larsbx/tui-story/workflows/CI/badge.svg)
+
 A terminal user interface (TUI) application built with Zig and libvaxis that analyzes semantic relationships between groups of ideas using LLMs and displays them as an interactive graph.
 
 ## Features
@@ -42,6 +44,105 @@ export PATH="$PWD/zig-linux-x86_64-0.13.0:$PATH"
 git clone <repository-url>
 cd tui-story
 zig build
+```
+
+## Testing
+
+This project includes comprehensive unit tests to ensure code quality and prevent regressions.
+
+### Running Tests
+
+```bash
+# Run all tests
+zig build test
+
+# Run tests with detailed output
+zig build test --summary all
+
+# Run tests with verbose output (useful for debugging)
+zig build test --summary all --verbose
+```
+
+### Test Structure
+
+```
+tests/
+├── unit/              # Unit tests for individual modules
+│   ├── graph_test.zig # Graph data structure tests
+│   ├── llm_test.zig   # LLM client tests
+│   └── ui_test.zig    # UI state management tests
+├── integration/       # Integration tests (future)
+└── fixtures/          # Test data and fixtures (future)
+```
+
+### Test Coverage
+
+The test suite includes:
+
+- **Graph Module** (21 tests):
+  - RelationType conversions and properties
+  - Vertex and edge management
+  - Memory safety validation
+  - Layout algorithm correctness
+  - Boundary condition handling
+
+- **LLM Module** (16 tests):
+  - Client initialization
+  - Prompt building and formatting
+  - Mock relationship generation
+  - Memory safety for relationships
+  - API fallback behavior
+
+- **UI Module** (15 tests):
+  - State initialization
+  - Mode transitions
+  - Idea list management
+  - Input buffer handling
+  - Memory safety for UI state
+
+**Total: 52+ unit tests**
+
+### Memory Safety
+
+All tests use Zig's `GeneralPurposeAllocator` with leak detection to ensure proper memory management:
+
+```zig
+var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+defer {
+    const leaked = gpa.deinit();
+    try testing.expect(leaked == .ok); // Fail if memory leaked
+}
+```
+
+### Continuous Integration
+
+Tests run automatically on every push via GitHub Actions:
+- ✅ All tests must pass
+- ✅ Code formatting must be correct (`zig fmt --check`)
+- ✅ Builds verified on Ubuntu and macOS
+
+See `.github/workflows/ci.yml` for CI configuration.
+
+### Writing Tests
+
+When adding new features, include tests:
+
+```zig
+const std = @import("std");
+const testing = std.testing;
+const your_module = @import("../../src/your_module.zig");
+
+test "your test description" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer {
+        const leaked = gpa.deinit();
+        try testing.expect(leaked == .ok);
+    }
+    const allocator = gpa.allocator();
+
+    // Your test code here
+    try testing.expect(condition);
+}
 ```
 
 ## Usage
