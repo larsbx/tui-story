@@ -1,0 +1,15 @@
+.{
+    .name = "semantic-graph-tui",
+    .version = "0.1.0",
+    .dependencies = .{
+        .libvaxis = .{
+            .url = "https://github.com/rockorager/libvaxis/archive/refs/tags/v0.8.1.tar.gz",
+            .hash = "1220687748ec2d61618b6afebcb66447e4cd78ca76fc1f2b4ecbf4be0dd6e81a66cb",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
