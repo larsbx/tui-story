@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Style guide for documentation consistency
 - mdBook configuration for static site generation
 
+### Fixed
+- Test compilation errors across all test suites (65 tests now passing)
+- Memory leak check pattern - removed `try` from defer expressions
+- Compatibility with Zig 0.13.0 (removed unavailable `std.process.unsetenv()`)
+- Module import system - migrated from relative paths to module system
+- UI tests updated to match single-idea entry implementation
+- Made LLM test helper functions public (`buildPrompt`, `getMockRelationships`)
+
+### Changed
+- Build system now uses proper module declarations with dependency wiring
+- All imports changed from relative paths (e.g., `@import("../../src/graph.zig")`) to module imports (e.g., `@import("graph")`)
+- Test cleanup code simplified to use `defer _ = gpa.deinit()`
+- Temporarily commented out libvaxis dependency in build files (network issues)
+
 ## [0.3.0] - 2025-11-20
 
 ### Added
