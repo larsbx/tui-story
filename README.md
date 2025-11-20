@@ -24,6 +24,9 @@ A terminal user interface (TUI) application built with Zig and libvaxis that ana
 - **[Formal Verification](./specs/)** - TLA+ specifications and proofs
   - [Formal Verification Manifesto](./docs/FORMAL_VERIFICATION_MANIFESTO.md)
   - [Executive Summary](./docs/EXECUTIVE_SUMMARY.md)
+- **[Manifestos](./docs/)**
+  - [Data & Analytics Manifesto](./docs/DATA_ANALYTICS_MANIFESTO.md) - 18 foundational principles for data engineering excellence
+  - [Vibe Coding Manifesto](./docs/VIBE_CODING_MANIFESTO.md) - Intuition-driven development methodology
 
 ## Features
 
