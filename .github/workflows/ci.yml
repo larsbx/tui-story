@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, 'claude/**' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Zig
+      uses: goto-bus-stop/setup-zig@v2
+      with:
+        version: 0.13.0
+
+    - name: Verify Zig installation
+      run: zig version
+
+    - name: Check code formatting
+      run: zig fmt --check src/ tests/
+
+    - name: Build project
+      run: zig build
+
+    - name: Run unit tests
+      run: zig build test --summary all
+
+    - name: Run tests with verbose output
+      if: failure()
+      run: zig build test --summary all --verbose
+
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Zig
+      uses: goto-bus-stop/setup-zig@v2
+      with:
+        version: 0.13.0
+
+    - name: Check formatting
+      run: |
+        zig fmt --check src/
+        zig fmt --check tests/
+
+  build-matrix:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Zig
+      uses: goto-bus-stop/setup-zig@v2
+      with:
+        version: 0.13.0
+
+    - name: Build project
+      run: zig build
+
+    - name: Run tests
+      run: zig build test --summary all
