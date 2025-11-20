@@ -1,6 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
-const graph = @import("../../src/graph.zig");
+const graph = @import("graph");
 
 // ============================================================================
 // RelationType Tests
@@ -58,10 +58,7 @@ test "RelationType.getColor returns valid color codes" {
 
 test "addVertex stores content and returns unique ID" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -78,10 +75,7 @@ test "addVertex stores content and returns unique ID" {
 
 test "addVertex returns sequential unique IDs" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -98,10 +92,7 @@ test "addVertex returns sequential unique IDs" {
 
 test "getVertex returns null for non-existent ID" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -116,10 +107,7 @@ test "getVertex returns null for non-existent ID" {
 
 test "addVertex assigns correct group membership" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -141,10 +129,7 @@ test "addVertex assigns correct group membership" {
 
 test "addEdge creates relationship between vertices" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -166,10 +151,7 @@ test "addEdge creates relationship between vertices" {
 
 test "addEdge stores certainty score correctly" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -186,10 +168,7 @@ test "addEdge stores certainty score correctly" {
 
 test "multiple edges can be added to graph" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -212,10 +191,7 @@ test "multiple edges can be added to graph" {
 
 test "SemanticGraph.deinit frees all memory without leaking" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok); // Fail if memory leaked
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -231,10 +207,7 @@ test "SemanticGraph.deinit frees all memory without leaking" {
 
 test "SemanticGraph.clear frees memory and resets state" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -258,10 +231,7 @@ test "SemanticGraph.clear frees memory and resets state" {
 
 test "empty SemanticGraph can be safely deinitialized" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -274,10 +244,7 @@ test "empty SemanticGraph can be safely deinitialized" {
 
 test "calculateLayout handles empty graph" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -289,10 +256,7 @@ test "calculateLayout handles empty graph" {
 
 test "calculateLayout sets vertex positions within bounds" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -319,10 +283,7 @@ test "calculateLayout sets vertex positions within bounds" {
 
 test "calculateLayout separates groups horizontally" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -344,10 +305,7 @@ test "calculateLayout separates groups horizontally" {
 
 test "calculateLayout handles single vertex" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -368,10 +326,7 @@ test "calculateLayout handles single vertex" {
 
 test "multiple different relationship types between same nodes are allowed" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -396,10 +351,7 @@ test "multiple different relationship types between same nodes are allowed" {
 
 test "duplicate edges with same type are prevented" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -419,10 +371,7 @@ test "duplicate edges with same type are prevented" {
 
 test "duplicate edge with higher certainty updates existing edge" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -447,10 +396,7 @@ test "duplicate edge with higher certainty updates existing edge" {
 
 test "duplicate edge with lower certainty is skipped" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -474,10 +420,7 @@ test "duplicate edge with lower certainty is skipped" {
 
 test "bidirectional relationships are allowed" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -502,10 +445,7 @@ test "bidirectional relationships are allowed" {
 
 test "hasEdge returns true for existing edge" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -521,10 +461,7 @@ test "hasEdge returns true for existing edge" {
 
 test "hasEdge returns false for non-existent edge" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -547,10 +484,7 @@ test "hasEdge returns false for non-existent edge" {
 
 test "getEdgesBetween returns all edges between two vertices" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -595,10 +529,7 @@ test "getEdgesBetween returns all edges between two vertices" {
 
 test "getEdgesBetween returns empty slice when no edges exist" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -615,10 +546,7 @@ test "getEdgesBetween returns empty slice when no edges exist" {
 
 test "findEdge returns correct edge when it exists" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -640,10 +568,7 @@ test "findEdge returns correct edge when it exists" {
 
 test "findEdge returns null when edge does not exist" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);

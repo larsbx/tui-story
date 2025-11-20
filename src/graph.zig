@@ -1,5 +1,5 @@
 const std = @import("std");
-const validation = @import("validation.zig");
+const validation = @import("validation");
 
 pub const RelationType = enum {
     contradictory,
