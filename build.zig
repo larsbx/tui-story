@@ -58,4 +58,22 @@ pub fn build(b: *std.Build) void {
     });
     const run_ui_tests = b.addRunArtifact(ui_tests);
     test_step.dependOn(&run_ui_tests.step);
+
+    // Architecture tests
+    const arch_tests = b.addTest(.{
+        .root_source_file = b.path("tests/unit/architecture_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const run_arch_tests = b.addRunArtifact(arch_tests);
+    test_step.dependOn(&run_arch_tests.step);
+
+    // Integration tests
+    const integration_tests = b.addTest(.{
+        .root_source_file = b.path("tests/integration/workflow_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const run_integration_tests = b.addRunArtifact(integration_tests);
+    test_step.dependOn(&run_integration_tests.step);
 }

@@ -2,6 +2,10 @@ const std = @import("std");
 const vaxis = @import("vaxis");
 const graph = @import("graph.zig");
 const llm = @import("llm.zig");
+const validation = @import("validation.zig");
+const analysis_service = @import("analysis_service.zig");
+
+const log = std.log.scoped(.ui);
 
 pub const UIMode = enum {
     input_group1,
@@ -19,6 +23,7 @@ pub const UIState = struct {
     selected_edge: ?usize,
     error_message: ?[]const u8,
     allocator: std.mem.Allocator,
+    analysis: analysis_service.AnalysisService,
 
     pub fn init() UIState {
         // We'll set the allocator later
@@ -42,6 +47,7 @@ pub const UIState = struct {
             .selected_edge = null,
             .error_message = null,
             .allocator = allocator,
+            .analysis = analysis_service.AnalysisService.init(allocator),
         };
     }
 
@@ -65,13 +71,27 @@ pub const UIState = struct {
             .input_group1, .input_group2 => {
                 if (key.matches(vaxis.Key.enter, .{})) {
                     if (self.current_input.items.len > 0) {
-                        const idea = try self.allocator.dupe(u8, self.current_input.items);
+                        // Validate input before accepting
+                        validation.validateIdea(self.current_input.items) catch |err| {
+                            self.error_message = switch (err) {
+                                error.EmptyInput => "Error: Input is empty",
+                                error.InputTooLong => "Error: Input too long (max 1000 chars)",
+                                error.InvalidUtf8 => "Error: Invalid UTF-8 encoding",
+                                else => "Error: Invalid input",
+                            };
+                            self.current_input.clearRetainingCapacity();
+                            return;
+                        };
+
+                        // Sanitize and store the input
+                        const sanitized = try validation.sanitizeInput(self.current_input.items, self.allocator);
                         if (self.mode == .input_group1) {
-                            try self.group1_ideas.append(idea);
+                            try self.group1_ideas.append(sanitized);
                         } else {
-                            try self.group2_ideas.append(idea);
+                            try self.group2_ideas.append(sanitized);
                         }
                         self.current_input.clearRetainingCapacity();
+                        self.error_message = null; // Clear any previous errors
                     }
                 } else if (key.matches(vaxis.Key.escape, .{})) {
                     self.mode = .help;
@@ -110,50 +130,20 @@ pub const UIState = struct {
     fn analyzeIdeas(self: *UIState, g: *graph.SemanticGraph, llm_client: *llm.LLMClient) !void {
         self.mode = .analyzing;
 
-        // Clear existing graph
-        g.clear();
-
-        // Add vertices for group 1
-        var vertex_map = std.StringHashMap(usize).init(self.allocator);
-        defer vertex_map.deinit();
-
-        for (self.group1_ideas.items) |idea| {
-            const id = try g.addVertex(idea, 0);
-            try vertex_map.put(idea, id);
-        }
-
-        // Add vertices for group 2
-        for (self.group2_ideas.items) |idea| {
-            const id = try g.addVertex(idea, 1);
-            try vertex_map.put(idea, id);
-        }
-
-        // Get relationships from LLM
-        const relationships = try llm_client.analyzeRelationships(
+        // Delegate business logic to analysis service
+        try self.analysis.analyzeGroups(
             self.group1_ideas.items,
             self.group2_ideas.items,
+            g,
+            llm_client,
         );
-        defer {
-            for (relationships) |*rel| {
-                var r = rel.*;
-                r.deinit(self.allocator);
-            }
-            self.allocator.free(relationships);
-        }
-
-        // Add edges
-        for (relationships) |rel| {
-            if (vertex_map.get(rel.from_idea)) |from_id| {
-                if (vertex_map.get(rel.to_idea)) |to_id| {
-                    try g.addEdge(from_id, to_id, rel.relation_type, rel.certainty, rel.description);
-                }
-            }
-        }
 
         self.mode = .viewing_graph;
     }
 
     fn reset(self: *UIState, g: *graph.SemanticGraph) !void {
+        log.info("Resetting all data", .{});
+
         // Clear ideas
         for (self.group1_ideas.items) |idea| {
             self.allocator.free(idea);
@@ -170,6 +160,8 @@ pub const UIState = struct {
 
         self.mode = .help;
         self.selected_edge = null;
+
+        log.debug("Reset complete", .{});
     }
 };
 
@@ -281,6 +273,15 @@ fn renderInput(win: vaxis.Window, state: *UIState) !void {
     const prompt = try std.fmt.allocPrint(state.allocator, "> {s}_", .{state.current_input.items});
     defer state.allocator.free(prompt);
     _ = try win.printSegment(.{ .text = prompt, .style = .{ .fg = .{ .index = 2 } } }, .{ .row_offset = row, .col_offset = 2 });
+
+    // Show error message if present
+    if (state.error_message) |err_msg| {
+        row += 2;
+        _ = try win.printSegment(.{ .text = err_msg, .style = .{ .fg = .{ .index = 1 }, .bold = true } }, .{
+            .row_offset = row,
+            .col_offset = 2,
+        });
+    }
 
     row = win.height - 3;
     _ = try win.printSegment(.{ .text = "[Enter] Add idea  [Esc] Back to menu", .style = .{ .fg = .{ .index = 8 } } }, .{

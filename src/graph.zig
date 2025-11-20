@@ -1,4 +1,5 @@
 const std = @import("std");
+const validation = @import("validation.zig");
 
 pub const RelationType = enum {
     contradictory,
@@ -105,6 +106,10 @@ pub const SemanticGraph = struct {
     }
 
     pub fn addVertex(self: *SemanticGraph, content: []const u8, group: usize) !usize {
+        // Validate inputs
+        try validation.validateVertexContent(content);
+        try validation.validateGroup(group);
+
         const id = self.next_id;
         self.next_id += 1;
 
