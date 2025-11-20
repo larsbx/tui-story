@@ -127,8 +127,20 @@ pub const SemanticGraph = struct {
     }
 
     pub fn addEdge(self: *SemanticGraph, from: usize, to: usize, relation_type: RelationType, certainty: f32, description: []const u8) !void {
-        const desc_copy = try self.allocator.dupe(u8, description);
+        // Check for existing edge with same type
+        if (self.findEdge(from, to, relation_type)) |existing_edge| {
+            // Update existing edge if new certainty is higher
+            if (certainty > existing_edge.certainty) {
+                self.allocator.free(existing_edge.description);
+                existing_edge.certainty = certainty;
+                existing_edge.description = try self.allocator.dupe(u8, description);
+            }
+            // Otherwise, silently skip duplicate
+            return;
+        }
 
+        // Add new edge
+        const desc_copy = try self.allocator.dupe(u8, description);
         try self.edges.append(.{
             .from = from,
             .to = to,
@@ -141,6 +153,37 @@ pub const SemanticGraph = struct {
     pub fn getVertex(self: *SemanticGraph, id: usize) ?*Vertex {
         for (self.vertices.items) |*vertex| {
             if (vertex.id == id) return vertex;
+        }
+        return null;
+    }
+
+    /// Check if a specific edge exists between two vertices
+    pub fn hasEdge(self: *SemanticGraph, from: usize, to: usize, relation_type: RelationType) bool {
+        for (self.edges.items) |edge| {
+            if (edge.from == from and edge.to == to and edge.relation_type == relation_type) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// Get all edges between two vertices (caller owns returned slice)
+    pub fn getEdgesBetween(self: *SemanticGraph, from: usize, to: usize) ![]Edge {
+        var result = std.ArrayList(Edge).init(self.allocator);
+        for (self.edges.items) |edge| {
+            if (edge.from == from and edge.to == to) {
+                try result.append(edge);
+            }
+        }
+        return result.toOwnedSlice();
+    }
+
+    /// Find a specific edge between two vertices
+    pub fn findEdge(self: *SemanticGraph, from: usize, to: usize, relation_type: RelationType) ?*Edge {
+        for (self.edges.items) |*edge| {
+            if (edge.from == from and edge.to == to and edge.relation_type == relation_type) {
+                return edge;
+            }
         }
         return null;
     }
