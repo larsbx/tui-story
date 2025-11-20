@@ -75,3 +75,49 @@ jobs:
 
     - name: Run tests
       run: zig build test --summary all
+
+  documentation:
+    name: Documentation Checks
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check Markdown formatting
+      uses: DavidAnson/markdownlint-cli2-action@v14
+      with:
+        globs: '**/*.md'
+        config: '.markdownlint.json'
+
+    - name: Check Markdown links
+      uses: gaurav-nelson/github-action-markdown-link-check@v1
+      with:
+        use-quiet-mode: 'yes'
+        use-verbose-mode: 'no'
+        config-file: '.markdown-link-check.json'
+        folder-path: 'docs/'
+        file-path: './README.md, ./CHANGELOG.md, ./EXAMPLES.md, ./IMPLEMENTATION_SUMMARY.md'
+
+    - name: Setup mdBook
+      uses: peaceiris/actions-mdbook@v1
+      with:
+        mdbook-version: 'latest'
+
+    - name: Install mdBook preprocessors
+      run: |
+        cargo install mdbook-mermaid
+        cargo install mdbook-linkcheck
+
+    - name: Build documentation site
+      run: mdbook build
+
+    - name: Check for broken links in book
+      run: mdbook-linkcheck
+
+    - name: Upload documentation artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: documentation
+        path: book/
+        retention-days: 7

@@ -1,0 +1,66 @@
+# Project-specific vocabulary for Vale
+# Add terms that should be accepted (one per line)
+
+# Project name
+tui-story
+
+# Technologies
+Zig
+libvaxis
+Anthropic
+Claude
+
+# Technical terms
+RelationType
+SemanticGraph
+LLM
+LLMs
+TUI
+API
+APIs
+ADR
+ADRs
+UTF-8
+JSON
+YAML
+TOML
+CI/CD
+GraphViz
+
+# Relationship types
+CONTRADICTORY
+IMPLICATIVE
+HIERARCHICAL
+EVOLUTIONARY
+ANALOGOUS
+SYNONYMOUS
+ANTONYMOUS
+PART_WHOLE
+CAUSAL
+
+# Architecture terms
+Diátaxis
+Fruchterman
+Reingold
+Mermaid
+mdBook
+
+# Common abbreviations
+repo
+repos
+config
+configs
+func
+fn
+struct
+enum
+init
+deinit
+alloc
+dealloc
+
+# File extensions
+zig
+md
+yml
+ini

@@ -7,3 +7,11 @@ zig-cache/
 *.dylib
 *.exe
 .DS_Store
+
+# mdBook output
+book/
+
+# Vale styles (downloaded)
+.vale/styles/Vale/
+.vale/styles/write-good/
+.vale/styles/alex/
