@@ -8,6 +8,11 @@ zig-cache/
 *.exe
 .DS_Store
 
+# Zig installation files
+zig-linux-*/
+zig-macos-*/
+*.tar.xz
+
 # mdBook output
 book/
 
