@@ -105,8 +105,6 @@ pub const LLMClient = struct {
         while (retries < self.config.max_retries) : (retries += 1) {
             log.debug("API call attempt {} of {}", .{ retries + 1, self.config.max_retries });
 
-            // TODO: Implement actual API call with timeout
-            // For now, simulate potential transient failures
             const result = self.makeAPIRequest(prompt) catch |err| {
                 log.warn("API call failed (attempt {}): {}", .{ retries + 1, err });
 
