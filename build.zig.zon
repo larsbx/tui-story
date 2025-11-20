@@ -1,5 +1,5 @@
 .{
-    .name = .@"semantic_graph_tui",
+    .name = .semantic_graph_tui,
     .version = "0.1.0",
     .fingerprint = "",
     .dependencies = .{
