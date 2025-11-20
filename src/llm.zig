@@ -3,6 +3,19 @@ const graph = @import("graph");
 
 const log = std.log.scoped(.llm);
 
+/// Supported API providers
+pub const APIProvider = enum {
+    anthropic,
+    openai,
+    custom,
+
+    pub fn fromString(s: []const u8) APIProvider {
+        if (std.ascii.eqlIgnoreCase(s, "anthropic")) return .anthropic;
+        if (std.ascii.eqlIgnoreCase(s, "openai")) return .openai;
+        return .custom;
+    }
+};
+
 /// Configuration for API resilience
 const APIConfig = struct {
     max_retries: u8 = 3,
@@ -10,18 +23,64 @@ const APIConfig = struct {
     initial_backoff_ms: u64 = 1_000, // 1 second
 };
 
+/// Provider-specific configuration
+const ProviderConfig = struct {
+    provider: APIProvider,
+    model: []const u8,
+    api_endpoint: []const u8,
+    auth_header: []const u8, // e.g., "x-api-key" or "Authorization"
+    auth_prefix: []const u8, // e.g., "" or "Bearer "
+};
+
 pub const LLMClient = struct {
     allocator: std.mem.Allocator,
     api_key: ?[]const u8,
-    api_endpoint: []const u8,
     http_client: std.http.Client,
     config: APIConfig,
+    provider_config: ProviderConfig,
 
     pub fn init(allocator: std.mem.Allocator) LLMClient {
-        const api_key = std.process.getEnvVarOwned(allocator, "ANTHROPIC_API_KEY") catch null;
+        // Detect provider from environment (defaults to Anthropic for backward compatibility)
+        const provider_str = std.process.getEnvVarOwned(allocator, "LLM_PROVIDER") catch null;
+        const provider = if (provider_str) |p| blk: {
+            defer allocator.free(p);
+            break :blk APIProvider.fromString(p);
+        } else .anthropic;
+
+        // Get API key based on provider
+        const api_key = switch (provider) {
+            .anthropic => std.process.getEnvVarOwned(allocator, "ANTHROPIC_API_KEY") catch null,
+            .openai => std.process.getEnvVarOwned(allocator, "OPENAI_API_KEY") catch null,
+            .custom => std.process.getEnvVarOwned(allocator, "LLM_API_KEY") catch null,
+        };
+
+        // Configure provider-specific settings
+        const provider_config = switch (provider) {
+            .anthropic => ProviderConfig{
+                .provider = .anthropic,
+                .model = std.process.getEnvVarOwned(allocator, "LLM_MODEL") catch "claude-3-5-sonnet-20241022",
+                .api_endpoint = std.process.getEnvVarOwned(allocator, "LLM_API_ENDPOINT") catch "https://api.anthropic.com/v1/messages",
+                .auth_header = "x-api-key",
+                .auth_prefix = "",
+            },
+            .openai => ProviderConfig{
+                .provider = .openai,
+                .model = std.process.getEnvVarOwned(allocator, "LLM_MODEL") catch "gpt-4",
+                .api_endpoint = std.process.getEnvVarOwned(allocator, "LLM_API_ENDPOINT") catch "https://api.openai.com/v1/chat/completions",
+                .auth_header = "Authorization",
+                .auth_prefix = "Bearer ",
+            },
+            .custom => ProviderConfig{
+                .provider = .custom,
+                .model = std.process.getEnvVarOwned(allocator, "LLM_MODEL") catch "default",
+                .api_endpoint = std.process.getEnvVarOwned(allocator, "LLM_API_ENDPOINT") catch "http://localhost:8000/v1/chat/completions",
+                .auth_header = std.process.getEnvVarOwned(allocator, "LLM_AUTH_HEADER") catch "Authorization",
+                .auth_prefix = std.process.getEnvVarOwned(allocator, "LLM_AUTH_PREFIX") catch "Bearer ",
+            },
+        };
 
         if (api_key) |_| {
-            log.info("LLM client initialized with API key", .{});
+            log.info("LLM client initialized with {s} provider", .{@tagName(provider)});
         } else {
             log.warn("LLM client initialized without API key - using mock data", .{});
         }
@@ -29,9 +88,9 @@ pub const LLMClient = struct {
         return .{
             .allocator = allocator,
             .api_key = api_key,
-            .api_endpoint = "https://api.anthropic.com/v1/messages",
             .http_client = std.http.Client{ .allocator = allocator },
             .config = .{},
+            .provider_config = provider_config,
         };
     }
 
@@ -39,6 +98,8 @@ pub const LLMClient = struct {
         if (self.api_key) |key| {
             self.allocator.free(key);
         }
+        // Note: provider_config strings are static or from environment,
+        // which are freed separately if dynamically allocated
         self.http_client.deinit();
     }
 
@@ -127,29 +188,170 @@ pub const LLMClient = struct {
     }
 
     fn makeAPIRequest(self: *LLMClient, prompt: []const u8) ![]const u8 {
-        _ = prompt;
+        const api_key = self.api_key orelse return error.MissingAPIKey;
 
-        // TODO: Implement actual HTTP request with timeout
-        // This would include:
-        // 1. Creating HTTP request with headers (API key, content-type)
-        // 2. Setting timeout on the request
-        // 3. Sending request and reading response
-        // 4. Handling various HTTP status codes
-        //
-        // Example structure:
-        // var req = try self.http_client.open(.POST, self.api_endpoint, .{
-        //     .server_header_buffer = &server_header_buffer,
-        // });
-        // defer req.deinit();
-        // req.transfer_encoding = .chunked;
-        //
-        // Set timeout using a timer or similar mechanism
-        // const timeout_timer = try std.time.Timer.start();
-        //
-        // Write request body and read response with timeout checking
+        // Start timeout timer
+        const start_time = std.time.milliTimestamp();
 
-        // For now, return empty JSON array
-        return try self.allocator.dupe(u8, "[]");
+        // Parse the endpoint URI
+        const uri = try std.Uri.parse(self.provider_config.api_endpoint);
+
+        // Prepare request buffer
+        var server_header_buffer: [8192]u8 = undefined;
+
+        // Open HTTP request
+        var req = try self.http_client.open(.POST, uri, .{
+            .server_header_buffer = &server_header_buffer,
+        });
+        defer req.deinit();
+
+        // Set headers
+        req.transfer_encoding = .chunked;
+        try req.headers.append("content-type", "application/json");
+
+        // Set authentication header
+        if (self.provider_config.auth_prefix.len > 0) {
+            const auth_value = try std.fmt.allocPrint(
+                self.allocator,
+                "{s}{s}",
+                .{ self.provider_config.auth_prefix, api_key },
+            );
+            defer self.allocator.free(auth_value);
+            try req.headers.append(self.provider_config.auth_header, auth_value);
+        } else {
+            try req.headers.append(self.provider_config.auth_header, api_key);
+        }
+
+        // Add provider-specific headers
+        if (self.provider_config.provider == .anthropic) {
+            try req.headers.append("anthropic-version", "2023-06-01");
+        }
+
+        // Build request body based on provider
+        var request_body = std.ArrayList(u8).init(self.allocator);
+        defer request_body.deinit();
+
+        try self.buildRequestBody(&request_body, prompt);
+
+        // Check timeout before sending
+        if (std.time.milliTimestamp() - start_time > self.config.timeout_ms) {
+            return error.Timeout;
+        }
+
+        // Send request
+        try req.send();
+        try req.writeAll(request_body.items);
+        try req.finish();
+
+        // Wait for response
+        try req.wait();
+
+        // Check timeout after receiving response
+        if (std.time.milliTimestamp() - start_time > self.config.timeout_ms) {
+            return error.Timeout;
+        }
+
+        // Check HTTP status
+        if (req.response.status != .ok) {
+            log.err("HTTP request failed with status: {}", .{req.response.status});
+            return error.HTTPRequestFailed;
+        }
+
+        // Read response body
+        var response_body = std.ArrayList(u8).init(self.allocator);
+        errdefer response_body.deinit();
+
+        const reader = req.reader();
+        try reader.readAllArrayList(&response_body, 1024 * 1024); // 1MB max
+
+        // Extract text from response based on provider format
+        return try self.extractResponseText(response_body.items);
+    }
+
+    fn buildRequestBody(self: *LLMClient, body: *std.ArrayList(u8), prompt: []const u8) !void {
+        const writer = body.writer();
+
+        switch (self.provider_config.provider) {
+            .anthropic => {
+                // Anthropic Messages API format
+                try writer.writeAll("{\"model\":");
+                try std.json.encodeJsonString(self.provider_config.model, .{}, writer);
+                try writer.writeAll(",\"max_tokens\":4096,\"messages\":[{\"role\":\"user\",\"content\":");
+                try std.json.encodeJsonString(prompt, .{}, writer);
+                try writer.writeAll("}]}");
+            },
+            .openai, .custom => {
+                // OpenAI Chat Completions format (widely compatible)
+                try writer.writeAll("{\"model\":");
+                try std.json.encodeJsonString(self.provider_config.model, .{}, writer);
+                try writer.writeAll(",\"messages\":[{\"role\":\"user\",\"content\":");
+                try std.json.encodeJsonString(prompt, .{}, writer);
+                try writer.writeAll("}]}");
+            },
+        }
+    }
+
+    fn extractResponseText(self: *LLMClient, response_body: []const u8) ![]const u8 {
+        // Parse JSON response
+        const response_json = try std.json.parseFromSlice(
+            std.json.Value,
+            self.allocator,
+            response_body,
+            .{},
+        );
+        defer response_json.deinit();
+
+        const root = response_json.value;
+        if (root != .object) {
+            return error.InvalidResponseFormat;
+        }
+
+        // Extract based on provider format
+        switch (self.provider_config.provider) {
+            .anthropic => {
+                // Anthropic format: {"content": [{"type": "text", "text": "..."}], ...}
+                const content_field = root.object.get("content") orelse return error.MissingContentField;
+                if (content_field != .array or content_field.array.items.len == 0) {
+                    return error.InvalidContentFormat;
+                }
+
+                const first_content = content_field.array.items[0];
+                if (first_content != .object) {
+                    return error.InvalidContentFormat;
+                }
+
+                const text_field = first_content.object.get("text") orelse return error.MissingTextField;
+                if (text_field != .string) {
+                    return error.InvalidTextFormat;
+                }
+
+                return try self.allocator.dupe(u8, text_field.string);
+            },
+            .openai, .custom => {
+                // OpenAI format: {"choices": [{"message": {"content": "..."}}], ...}
+                const choices_field = root.object.get("choices") orelse return error.MissingChoicesField;
+                if (choices_field != .array or choices_field.array.items.len == 0) {
+                    return error.InvalidChoicesFormat;
+                }
+
+                const first_choice = choices_field.array.items[0];
+                if (first_choice != .object) {
+                    return error.InvalidChoiceFormat;
+                }
+
+                const message_field = first_choice.object.get("message") orelse return error.MissingMessageField;
+                if (message_field != .object) {
+                    return error.InvalidMessageFormat;
+                }
+
+                const content_field = message_field.object.get("content") orelse return error.MissingContentField;
+                if (content_field != .string) {
+                    return error.InvalidContentType;
+                }
+
+                return try self.allocator.dupe(u8, content_field.string);
+            },
+        }
     }
 
     fn parseResponse(self: *LLMClient, response: []const u8) ![]Relationship {
