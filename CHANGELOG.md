@@ -38,7 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Build system now uses proper module declarations with dependency wiring
 - All imports changed from relative paths to module imports
 - Test cleanup code simplified to use `defer _ = gpa.deinit()`
-- Temporarily commented out libvaxis dependency in build files (network issues)
 
 ### Fixed
 - Test compilation errors across all test suites (65 tests now passing)
@@ -47,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Module import system - migrated from relative paths to module system
 - UI tests updated to match single-idea entry implementation
 - Made LLM test helper functions public (`buildPrompt`, `getMockRelationships`)
+- Re-enabled libvaxis dependency and main executable build in build configuration
 
 ### Documentation
 - Added specs/README.md with comprehensive TLA+ specification guide
