@@ -1,6 +1,6 @@
 ---
 title: "Semantic Relationship Graph TUI"
-description: "Terminal UI for analyzing semantic relationships between ideas using LLMs"
+description: "Terminal UI for analyzing semantic relationships between concepts using LLMs"
 tags: [tui, llm, graph, semantic-analysis, zig, terminal, relationships]
 last_updated: 2025-11-20
 version: 0.3.0
@@ -10,7 +10,7 @@ version: 0.3.0
 
 ![CI](https://github.com/larsbx/tui-story/workflows/CI/badge.svg)
 
-A terminal user interface (TUI) application built with Zig and libvaxis that analyzes semantic relationships between ideas using LLMs and displays them as an interactive graph. Each new idea is automatically compared to all existing ideas, building a rich semantic network incrementally.
+A terminal user interface (TUI) application built with Zig and libvaxis that analyzes semantic relationships between concepts using LLMs and displays them as an interactive graph. Each new concept is automatically compared to all existing concepts, building a rich semantic network incrementally.
 
 ## Documentation
 
@@ -30,22 +30,22 @@ A terminal user interface (TUI) application built with Zig and libvaxis that ana
 
 ## Features
 
-- **Incremental Idea Entry**: Enter ideas one at a time, each automatically compared to all existing ideas
-- **Dense Semantic Network**: Each new idea creates relationships with all previous ideas
+- **Incremental Concept Entry**: Enter concepts one at a time, each automatically compared to all existing concepts
+- **Dense Semantic Network**: Each new concept creates relationships with all previous concepts
 - **LLM-Powered Analysis**: Uses large language models to identify semantic relationships
-- **Graph Visualization**: Displays relationships as vertices (ideas) and edges (relationships)
+- **Graph Visualization**: Displays relationships as vertices (concepts) and edges (relationships)
 - **Multiple Relationships**: Nodes can have multiple different relationship types between them
 - **Intelligent Deduplication**: Prevents duplicate relationships and updates based on certainty
 - **9 Relationship Types**:
-  - **CONTRADICTORY** (⊥): Ideas that cannot both be true
-  - **IMPLICATIVE** (→): One idea logically implies another
-  - **HIERARCHICAL** (⊆): One idea is a specific case of another
-  - **EVOLUTIONARY** (⟿): One idea developed from another
-  - **ANALOGOUS** (≈): Ideas share structural similarity
-  - **SYNONYMOUS** (≡): Ideas mean the same thing
-  - **ANTONYMOUS** (≠): Ideas are opposites
-  - **PART_WHOLE** (∈): One idea is part of another
-  - **CAUSAL** (⇒): One idea causes another
+  - **CONTRADICTORY** (⊥): Propositions that cannot both be true
+  - **IMPLICATIVE** (→): Propositions where one logically implies another
+  - **HIERARCHICAL** (⊆): Concepts where one is a specific case of another
+  - **EVOLUTIONARY** (⟿): Concepts where one developed from another
+  - **ANALOGOUS** (≈): Concepts that share structural similarity
+  - **SYNONYMOUS** (≡): Terms that mean the same thing
+  - **ANTONYMOUS** (≠): Terms that are opposites
+  - **PART_WHOLE** (∈): Entities where one is part of another
+  - **CAUSAL** (⇒): Events where one causes another
 
 - **Interactive Navigation**: Browse relationships with arrow keys
 - **Certainty Scores**: Each relationship includes a confidence level
@@ -190,13 +190,13 @@ Without an API key, the application uses mock data for demonstration.
 ### Controls
 
 **Main Menu:**
-- `e` - Enter a new idea (automatically analyzes relationships with existing ideas)
+- `e` - Enter a new concept (automatically analyzes relationships with existing concepts)
 - `v` - View the relationship graph
 - `r` - Reset all data
 - `q` - Quit application
 
 **Input Mode:**
-- Type your idea and press `Enter` to add it (triggers automatic analysis)
+- Type your concept and press `Enter` to add it (triggers automatic analysis)
 - `Esc` - Return to main menu
 
 **Graph View:**
@@ -208,28 +208,28 @@ Without an API key, the application uses mock data for demonstration.
 
 > **For more examples, see [EXAMPLES.md](./EXAMPLES.md)** - Political systems, programming paradigms, scientific theories, machine learning, and economic systems.
 
-The application uses an **incremental workflow** where each new idea is automatically analyzed against all existing ideas:
+The application uses an **incremental workflow** where each new concept is automatically analyzed against all existing concepts:
 
-1. Press `e` to enter your first idea:
+1. Press `e` to enter your first concept:
    - "Democracy"
 
-2. Press `e` to enter your second idea:
+2. Press `e` to enter your second concept:
    - "Authoritarianism"
    - The LLM automatically identifies: Democracy ⊥ Authoritarianism (CONTRADICTORY)
 
-3. Press `e` to enter your third idea:
+3. Press `e` to enter your third concept:
    - "Representative government"
-   - The LLM compares it to both previous ideas:
+   - The LLM compares it to both previous concepts:
      - Representative government ⊆ Democracy (HIERARCHICAL)
      - Representative government ⊥ Authoritarianism (CONTRADICTORY)
 
-4. Continue adding ideas - each is automatically compared to all previous ideas
+4. Continue adding concepts - each is automatically compared to all previous concepts
 
 5. Press `v` at any time to view the graph visualization
 
 **Benefits of Incremental Approach:**
-- Dense connectivity: Each idea relates to all previous ideas
-- Real-time graph evolution: See patterns emerge as you add ideas
+- Dense connectivity: Each concept relates to all previous concepts
+- Real-time graph evolution: See patterns emerge as you add concepts
 - Incremental knowledge integration: Build understanding step by step
 - Pattern discovery: Identify central concepts, clusters, and bridges
 
@@ -265,9 +265,9 @@ See [ADR-005](./docs/architecture/ADR-005-service-layer-extraction.md) for servi
 ### Data Structures
 
 **Vertex (Node):**
-- Represents an idea/concept
+- Represents a concept
 - Has position (x, y) for layout
-- Contains the idea text/content
+- Contains the concept text/content
 
 **Edge (Relationship):**
 - Connects two vertices
