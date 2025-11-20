@@ -8,10 +8,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Formal Verification Manifesto v1.1 with 16 foundational principles
+- Executive Summary for engineering leadership on formal methods adoption
+- Comprehensive TLA+ formal specifications:
+  - SemanticGraphTUI.tla: Main system specification with UI state machine
+  - SemanticGraphConstraints.tla: Graph data structure constraints
+  - LLMRetryLogic.tla: LLM API retry mechanism with exponential backoff
+  - ValidationLayer.tla: Input validation and security boundaries
+- TLC model checker configurations for all specifications
+- Semantic analysis documentation with 26 invariants and 13 properties
+- Decision tree for formal verification tool selection
+- Learning paths for practitioners, researchers, and managers
+- Common pitfalls and open research problems in formal methods
+- Multiple relationship support between same nodes
+- Edge query methods: `hasEdge()`, `getEdgesBetween()`, `findEdge()`
+- Intelligent duplicate edge prevention with certainty-based updates
 - CHANGELOG.md to track project changes
 - Architecture diagrams for system overview and workflows
 - Style guide for documentation consistency
 - mdBook configuration for static site generation
+
+### Changed
+- **BREAKING**: Replaced dual-group entry with single idea incremental workflow
+- Each new idea is now automatically compared to all existing ideas
+- UI modes simplified: single input mode instead of separate group1/group2 modes
+- Key bindings updated: `e` to enter idea (removed `1`, `2`, `a` keys)
+- Single color for all vertices (removed group-based coloring)
+- Graph now builds incrementally with dense connectivity
+- Build system now uses proper module declarations with dependency wiring
+- All imports changed from relative paths to module imports
+- Test cleanup code simplified to use `defer _ = gpa.deinit()`
+- Temporarily commented out libvaxis dependency in build files (network issues)
 
 ### Fixed
 - Test compilation errors across all test suites (65 tests now passing)
@@ -21,11 +48,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - UI tests updated to match single-idea entry implementation
 - Made LLM test helper functions public (`buildPrompt`, `getMockRelationships`)
 
-### Changed
-- Build system now uses proper module declarations with dependency wiring
-- All imports changed from relative paths (e.g., `@import("../../src/graph.zig")`) to module imports (e.g., `@import("graph")`)
-- Test cleanup code simplified to use `defer _ = gpa.deinit()`
-- Temporarily commented out libvaxis dependency in build files (network issues)
+### Documentation
+- Added specs/README.md with comprehensive TLA+ specification guide
+- Added specs/SEMANTIC_ANALYSIS.md with detailed invariant analysis
+- Added docs/FORMAL_VERIFICATION_MANIFESTO.md
+- Added docs/EXECUTIVE_SUMMARY.md for managers and executives
+- Enhanced help text to reflect incremental approach
+
+### Testing
+- Added 13 new tests for multiple relationships and edge queries
+- Added 295 lines of test coverage for graph relationship handling
+- Integration tests updated for incremental workflow
 
 ## [0.3.0] - 2025-11-20
 
