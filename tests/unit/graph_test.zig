@@ -361,3 +361,298 @@ test "calculateLayout handles single vertex" {
     try testing.expect(vertex.x >= 10.0 and vertex.x <= 190.0);
     try testing.expect(vertex.y >= 5.0 and vertex.y <= 95.0);
 }
+
+// ============================================================================
+// Multiple Relationship Tests - NEW
+// ============================================================================
+
+test "multiple different relationship types between same nodes are allowed" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer {
+        const leaked = gpa.deinit();
+        try testing.expect(leaked == .ok);
+    }
+    const allocator = gpa.allocator();
+
+    var g = graph.SemanticGraph.init(allocator);
+    defer g.deinit();
+
+    const id1 = try g.addVertex("idea 1", 0);
+    const id2 = try g.addVertex("idea 2", 1);
+
+    // Add multiple different relationship types between same nodes
+    try g.addEdge(id1, id2, .implicative, 0.9, "A implies B");
+    try g.addEdge(id1, id2, .analogous, 0.7, "A is similar to B");
+    try g.addEdge(id1, id2, .causal, 0.8, "A causes B");
+
+    // All three edges should be present
+    try testing.expect(g.edges.items.len == 3);
+
+    // Verify each edge type exists
+    try testing.expect(g.hasEdge(id1, id2, .implicative));
+    try testing.expect(g.hasEdge(id1, id2, .analogous));
+    try testing.expect(g.hasEdge(id1, id2, .causal));
+}
+
+test "duplicate edges with same type are prevented" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer {
+        const leaked = gpa.deinit();
+        try testing.expect(leaked == .ok);
+    }
+    const allocator = gpa.allocator();
+
+    var g = graph.SemanticGraph.init(allocator);
+    defer g.deinit();
+
+    const id1 = try g.addVertex("idea 1", 0);
+    const id2 = try g.addVertex("idea 2", 1);
+
+    // Add same edge twice with same certainty
+    try g.addEdge(id1, id2, .implicative, 0.9, "first");
+    try g.addEdge(id1, id2, .implicative, 0.9, "duplicate");
+
+    // Only one edge should exist
+    try testing.expect(g.edges.items.len == 1);
+    try testing.expectEqualStrings("first", g.edges.items[0].description);
+}
+
+test "duplicate edge with higher certainty updates existing edge" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer {
+        const leaked = gpa.deinit();
+        try testing.expect(leaked == .ok);
+    }
+    const allocator = gpa.allocator();
+
+    var g = graph.SemanticGraph.init(allocator);
+    defer g.deinit();
+
+    const id1 = try g.addVertex("idea 1", 0);
+    const id2 = try g.addVertex("idea 2", 1);
+
+    // Add edge with lower certainty
+    try g.addEdge(id1, id2, .implicative, 0.7, "initial description");
+    try testing.expect(g.edges.items.len == 1);
+    try testing.expect(g.edges.items[0].certainty == 0.7);
+
+    // Add same edge with higher certainty
+    try g.addEdge(id1, id2, .implicative, 0.95, "updated description");
+
+    // Should still have only one edge, but with updated certainty and description
+    try testing.expect(g.edges.items.len == 1);
+    try testing.expect(g.edges.items[0].certainty == 0.95);
+    try testing.expectEqualStrings("updated description", g.edges.items[0].description);
+}
+
+test "duplicate edge with lower certainty is skipped" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer {
+        const leaked = gpa.deinit();
+        try testing.expect(leaked == .ok);
+    }
+    const allocator = gpa.allocator();
+
+    var g = graph.SemanticGraph.init(allocator);
+    defer g.deinit();
+
+    const id1 = try g.addVertex("idea 1", 0);
+    const id2 = try g.addVertex("idea 2", 1);
+
+    // Add edge with higher certainty
+    try g.addEdge(id1, id2, .implicative, 0.95, "high certainty");
+    try testing.expect(g.edges.items.len == 1);
+
+    // Try to add same edge with lower certainty
+    try g.addEdge(id1, id2, .implicative, 0.6, "low certainty");
+
+    // Should still have only one edge with original values
+    try testing.expect(g.edges.items.len == 1);
+    try testing.expect(g.edges.items[0].certainty == 0.95);
+    try testing.expectEqualStrings("high certainty", g.edges.items[0].description);
+}
+
+test "bidirectional relationships are allowed" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer {
+        const leaked = gpa.deinit();
+        try testing.expect(leaked == .ok);
+    }
+    const allocator = gpa.allocator();
+
+    var g = graph.SemanticGraph.init(allocator);
+    defer g.deinit();
+
+    const id1 = try g.addVertex("idea 1", 0);
+    const id2 = try g.addVertex("idea 2", 1);
+
+    // Add edges in both directions
+    try g.addEdge(id1, id2, .implicative, 0.9, "A -> B");
+    try g.addEdge(id2, id1, .implicative, 0.8, "B -> A");
+
+    // Both edges should exist
+    try testing.expect(g.edges.items.len == 2);
+    try testing.expect(g.hasEdge(id1, id2, .implicative));
+    try testing.expect(g.hasEdge(id2, id1, .implicative));
+}
+
+// ============================================================================
+// Edge Query Methods Tests - NEW
+// ============================================================================
+
+test "hasEdge returns true for existing edge" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer {
+        const leaked = gpa.deinit();
+        try testing.expect(leaked == .ok);
+    }
+    const allocator = gpa.allocator();
+
+    var g = graph.SemanticGraph.init(allocator);
+    defer g.deinit();
+
+    const id1 = try g.addVertex("idea 1", 0);
+    const id2 = try g.addVertex("idea 2", 1);
+
+    try g.addEdge(id1, id2, .implicative, 0.9, "test edge");
+
+    try testing.expect(g.hasEdge(id1, id2, .implicative));
+}
+
+test "hasEdge returns false for non-existent edge" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer {
+        const leaked = gpa.deinit();
+        try testing.expect(leaked == .ok);
+    }
+    const allocator = gpa.allocator();
+
+    var g = graph.SemanticGraph.init(allocator);
+    defer g.deinit();
+
+    const id1 = try g.addVertex("idea 1", 0);
+    const id2 = try g.addVertex("idea 2", 1);
+
+    // No edge added
+    try testing.expect(!g.hasEdge(id1, id2, .implicative));
+
+    // Add different type
+    try g.addEdge(id1, id2, .causal, 0.8, "causal edge");
+
+    // Should return false for implicative type
+    try testing.expect(!g.hasEdge(id1, id2, .implicative));
+    // But true for causal
+    try testing.expect(g.hasEdge(id1, id2, .causal));
+}
+
+test "getEdgesBetween returns all edges between two vertices" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer {
+        const leaked = gpa.deinit();
+        try testing.expect(leaked == .ok);
+    }
+    const allocator = gpa.allocator();
+
+    var g = graph.SemanticGraph.init(allocator);
+    defer g.deinit();
+
+    const id1 = try g.addVertex("idea 1", 0);
+    const id2 = try g.addVertex("idea 2", 1);
+    const id3 = try g.addVertex("idea 3", 0);
+
+    // Add multiple edges between id1 and id2
+    try g.addEdge(id1, id2, .implicative, 0.9, "edge 1");
+    try g.addEdge(id1, id2, .analogous, 0.7, "edge 2");
+    try g.addEdge(id1, id2, .causal, 0.8, "edge 3");
+
+    // Add edge from different pair
+    try g.addEdge(id1, id3, .hierarchical, 0.85, "other edge");
+
+    const edges = try g.getEdgesBetween(id1, id2);
+    defer allocator.free(edges);
+
+    // Should return 3 edges between id1 and id2
+    try testing.expect(edges.len == 3);
+
+    // Verify edge types
+    var found_implicative = false;
+    var found_analogous = false;
+    var found_causal = false;
+
+    for (edges) |edge| {
+        try testing.expect(edge.from == id1);
+        try testing.expect(edge.to == id2);
+
+        if (edge.relation_type == .implicative) found_implicative = true;
+        if (edge.relation_type == .analogous) found_analogous = true;
+        if (edge.relation_type == .causal) found_causal = true;
+    }
+
+    try testing.expect(found_implicative);
+    try testing.expect(found_analogous);
+    try testing.expect(found_causal);
+}
+
+test "getEdgesBetween returns empty slice when no edges exist" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer {
+        const leaked = gpa.deinit();
+        try testing.expect(leaked == .ok);
+    }
+    const allocator = gpa.allocator();
+
+    var g = graph.SemanticGraph.init(allocator);
+    defer g.deinit();
+
+    const id1 = try g.addVertex("idea 1", 0);
+    const id2 = try g.addVertex("idea 2", 1);
+
+    const edges = try g.getEdgesBetween(id1, id2);
+    defer allocator.free(edges);
+
+    try testing.expect(edges.len == 0);
+}
+
+test "findEdge returns correct edge when it exists" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer {
+        const leaked = gpa.deinit();
+        try testing.expect(leaked == .ok);
+    }
+    const allocator = gpa.allocator();
+
+    var g = graph.SemanticGraph.init(allocator);
+    defer g.deinit();
+
+    const id1 = try g.addVertex("idea 1", 0);
+    const id2 = try g.addVertex("idea 2", 1);
+
+    try g.addEdge(id1, id2, .implicative, 0.9, "test edge");
+
+    const edge = g.findEdge(id1, id2, .implicative);
+    try testing.expect(edge != null);
+    try testing.expect(edge.?.from == id1);
+    try testing.expect(edge.?.to == id2);
+    try testing.expect(edge.?.relation_type == .implicative);
+    try testing.expect(edge.?.certainty == 0.9);
+    try testing.expectEqualStrings("test edge", edge.?.description);
+}
+
+test "findEdge returns null when edge does not exist" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer {
+        const leaked = gpa.deinit();
+        try testing.expect(leaked == .ok);
+    }
+    const allocator = gpa.allocator();
+
+    var g = graph.SemanticGraph.init(allocator);
+    defer g.deinit();
+
+    const id1 = try g.addVertex("idea 1", 0);
+    const id2 = try g.addVertex("idea 2", 1);
+
+    // No edge added
+    const edge = g.findEdge(id1, id2, .implicative);
+    try testing.expect(edge == null);
+}
