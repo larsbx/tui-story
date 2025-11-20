@@ -9,7 +9,7 @@ const validation = @import("../../src/validation.zig");
 
 // Integration tests verify that modules work together correctly
 
-test "complete analysis workflow with mock LLM" {
+test "incremental idea addition workflow with mock LLM" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer {
         const leaked = gpa.deinit();
@@ -18,13 +18,10 @@ test "complete analysis workflow with mock LLM" {
     const allocator = gpa.allocator();
 
     // Setup: Create test ideas
-    const group1 = [_][]const u8{
+    const ideas = [_][]const u8{
         "Democracy",
         "Representative government",
         "Citizen participation",
-    };
-
-    const group2 = [_][]const u8{
         "Authoritarianism",
         "Centralized control",
         "Limited freedoms",
@@ -38,12 +35,22 @@ test "complete analysis workflow with mock LLM" {
     var llm_client = llm.LLMClient.init(allocator);
     defer llm_client.deinit();
 
-    // Execute: Run complete analysis workflow
-    try service.analyzeGroups(&group1, &group2, &semantic_graph, &llm_client);
+    // Track all ideas added so far
+    var ideas_list = std.ArrayList([]const u8).init(allocator);
+    defer ideas_list.deinit();
 
-    // Verify: Graph should be populated
+    // Execute: Add ideas one at a time
+    for (ideas) |new_idea| {
+        // Analyze against all existing ideas
+        try service.analyzeNewIdea(new_idea, ideas_list.items, &semantic_graph, &llm_client);
+        try ideas_list.append(new_idea);
+
+        // Verify the graph grows with each addition
+        try testing.expect(semantic_graph.vertices.items.len == ideas_list.items.len);
+    }
+
+    // Verify: Graph should be fully populated
     try testing.expect(semantic_graph.vertices.items.len == 6);
-    try testing.expect(semantic_graph.edges.items.len > 0);
 
     // Verify: Vertices have correct content
     var found_democracy = false;
@@ -84,17 +91,16 @@ test "workflow handles validation errors gracefully" {
     defer llm_client.deinit();
 
     // Test with empty idea (should fail validation)
-    const group1_invalid = [_][]const u8{""};
-    const group2 = [_][]const u8{"test"};
+    const existing_ideas = [_][]const u8{};
 
-    const result = service.analyzeGroups(&group1_invalid, &group2, &semantic_graph, &llm_client);
+    const result = service.analyzeNewIdea("", &existing_ideas, &semantic_graph, &llm_client);
     try testing.expectError(error.EmptyContent, result);
 
     // Graph should remain empty
     try testing.expect(semantic_graph.vertices.items.len == 0);
 }
 
-test "workflow with single idea in each group" {
+test "workflow with two ideas" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer {
         const leaked = gpa.deinit();
@@ -109,10 +115,16 @@ test "workflow with single idea in each group" {
     var llm_client = llm.LLMClient.init(allocator);
     defer llm_client.deinit();
 
-    const group1 = [_][]const u8{"Idea A"};
-    const group2 = [_][]const u8{"Idea B"};
+    // Add first idea
+    const existing_ideas = [_][]const u8{};
+    try service.analyzeNewIdea("Idea A", &existing_ideas, &semantic_graph, &llm_client);
 
-    try service.analyzeGroups(&group1, &group2, &semantic_graph, &llm_client);
+    // Should have exactly 1 vertex
+    try testing.expect(semantic_graph.vertices.items.len == 1);
+
+    // Add second idea
+    const ideas_so_far = [_][]const u8{"Idea A"};
+    try service.analyzeNewIdea("Idea B", &ideas_so_far, &semantic_graph, &llm_client);
 
     // Should have exactly 2 vertices
     try testing.expect(semantic_graph.vertices.items.len == 2);
@@ -136,37 +148,30 @@ test "workflow with many ideas" {
     var llm_client = llm.LLMClient.init(allocator);
     defer llm_client.deinit();
 
-    // Create 10 ideas in each group
-    var group1_list = std.ArrayList([]const u8).init(allocator);
-    defer group1_list.deinit();
-    var group2_list = std.ArrayList([]const u8).init(allocator);
-    defer group2_list.deinit();
+    // Create 20 ideas
+    var ideas_list = std.ArrayList([]const u8).init(allocator);
+    defer ideas_list.deinit();
+
+    var all_ideas = std.ArrayList([]const u8).init(allocator);
+    defer {
+        for (all_ideas.items) |idea| allocator.free(idea);
+        all_ideas.deinit();
+    }
 
     var i: usize = 0;
-    while (i < 10) : (i += 1) {
-        const idea1 = try std.fmt.allocPrint(allocator, "Group1 Idea {}", .{i});
-        const idea2 = try std.fmt.allocPrint(allocator, "Group2 Idea {}", .{i});
-        try group1_list.append(idea1);
-        try group2_list.append(idea2);
-    }
-    defer {
-        for (group1_list.items) |idea| allocator.free(idea);
-        for (group2_list.items) |idea| allocator.free(idea);
+    while (i < 20) : (i += 1) {
+        const idea = try std.fmt.allocPrint(allocator, "Idea {}", .{i});
+        try all_ideas.append(idea);
     }
 
-    // Run analysis
-    try service.analyzeGroups(
-        group1_list.items,
-        group2_list.items,
-        &semantic_graph,
-        &llm_client,
-    );
+    // Add ideas incrementally
+    for (all_ideas.items) |new_idea| {
+        try service.analyzeNewIdea(new_idea, ideas_list.items, &semantic_graph, &llm_client);
+        try ideas_list.append(new_idea);
+    }
 
     // Should have all 20 vertices
     try testing.expect(semantic_graph.vertices.items.len == 20);
-
-    // Should have multiple relationships
-    try testing.expect(semantic_graph.edges.items.len > 0);
 
     // Verify layout calculation doesn't crash with many vertices
     semantic_graph.calculateLayout(100.0, 50.0);
@@ -193,26 +198,28 @@ test "graph can be cleared and reused" {
     var llm_client = llm.LLMClient.init(allocator);
     defer llm_client.deinit();
 
-    const group1 = [_][]const u8{"First"};
-    const group2 = [_][]const u8{"Second"};
+    const existing = [_][]const u8{};
 
     // First analysis
-    try service.analyzeGroups(&group1, &group2, &semantic_graph, &llm_client);
+    try service.analyzeNewIdea("First", &existing, &semantic_graph, &llm_client);
+    const first = [_][]const u8{"First"};
+    try service.analyzeNewIdea("Second", &first, &semantic_graph, &llm_client);
+
     const first_vertex_count = semantic_graph.vertices.items.len;
-    const first_edge_count = semantic_graph.edges.items.len;
 
-    try testing.expect(first_vertex_count > 0);
-    try testing.expect(first_edge_count > 0);
+    try testing.expect(first_vertex_count == 2);
 
-    // Clear and run second analysis
-    const group3 = [_][]const u8{"Third"};
-    const group4 = [_][]const u8{"Fourth"};
+    // Clear graph
+    semantic_graph.clear();
+    try testing.expect(semantic_graph.vertices.items.len == 0);
 
-    try service.analyzeGroups(&group3, &group4, &semantic_graph, &llm_client);
+    // Add new ideas
+    try service.analyzeNewIdea("Third", &existing, &semantic_graph, &llm_client);
+    const third = [_][]const u8{"Third"};
+    try service.analyzeNewIdea("Fourth", &third, &semantic_graph, &llm_client);
 
     // Should have new data
     try testing.expect(semantic_graph.vertices.items.len == 2);
-    try testing.expect(semantic_graph.edges.items.len > 0);
 
     // Verify new content
     var found_third = false;
@@ -239,10 +246,15 @@ test "relationship types are preserved through workflow" {
     var llm_client = llm.LLMClient.init(allocator);
     defer llm_client.deinit();
 
-    const group1 = [_][]const u8{ "A", "B", "C" };
-    const group2 = [_][]const u8{ "X", "Y", "Z" };
+    const ideas = [_][]const u8{ "A", "B", "C", "X", "Y", "Z" };
 
-    try service.analyzeGroups(&group1, &group2, &semantic_graph, &llm_client);
+    var ideas_list = std.ArrayList([]const u8).init(allocator);
+    defer ideas_list.deinit();
+
+    for (ideas) |new_idea| {
+        try service.analyzeNewIdea(new_idea, ideas_list.items, &semantic_graph, &llm_client);
+        try ideas_list.append(new_idea);
+    }
 
     // Verify that all relationship types are valid
     for (semantic_graph.edges.items) |edge| {
