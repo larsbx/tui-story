@@ -26,6 +26,19 @@ pub const RelationType = enum {
         };
     }
 
+    pub fn fromString(str: []const u8) !RelationType {
+        if (std.mem.eql(u8, str, "CONTRADICTORY")) return .contradictory;
+        if (std.mem.eql(u8, str, "IMPLICATIVE")) return .implicative;
+        if (std.mem.eql(u8, str, "HIERARCHICAL")) return .hierarchical;
+        if (std.mem.eql(u8, str, "EVOLUTIONARY")) return .evolutionary;
+        if (std.mem.eql(u8, str, "ANALOGOUS")) return .analogous;
+        if (std.mem.eql(u8, str, "SYNONYMOUS")) return .synonymous;
+        if (std.mem.eql(u8, str, "ANTONYMOUS")) return .antonymous;
+        if (std.mem.eql(u8, str, "PART_WHOLE")) return .part_whole;
+        if (std.mem.eql(u8, str, "CAUSAL")) return .causal;
+        return error.UnknownRelationType;
+    }
+
     pub fn getSymbol(self: RelationType) []const u8 {
         return switch (self) {
             .contradictory => "⊥",
