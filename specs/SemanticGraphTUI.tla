@@ -17,7 +17,11 @@ EXTENDS Naturals, Sequences, FiniteSets, TLC
 
 CONSTANTS
     MaxIdeas,           \* Maximum number of ideas in the system
+                        \* NOTE: This is a MODEL CHECKING constraint only!
+                        \* The actual implementation has no hard limit on ideas.
+                        \* Set to small value (e.g., 10) for tractable state space.
     MaxContentLength,   \* Maximum length of idea content (1000)
+                        \* This IS a real implementation constraint (validation.zig)
     MaxRetries,         \* Maximum LLM API retries (3)
     NumGroups           \* Number of idea groups (2)
 

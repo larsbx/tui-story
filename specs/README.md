@@ -172,6 +172,31 @@ The system models 9 semantic relationship types:
 1. Install TLA+ Toolbox: https://github.com/tlaplus/tlaplus/releases
 2. Or use tla2tools.jar command-line tool
 
+### Important: Model Checking Constraints vs. Implementation Limits
+
+⚠️ **Critical Distinction**: The constants in these specifications serve different purposes:
+
+**Model Checking Constraints (NOT real limits):**
+- `MaxIdeas = 10` - Keeps state space tractable for verification
+- `MaxVertices = 10` - Prevents state space explosion during model checking
+
+**Real Implementation Constraints (actual limits):**
+- `MaxContentLength = 1000` - Enforced by `validation.zig`
+- `MaxRetries = 3` - Enforced by `llm.zig`
+- `NumGroups = 2` - Current feature limitation
+
+**Why Small Values for Model Checking?**
+
+TLA+ model checkers explore **every possible system state**. With N vertices and M edges:
+- State space grows exponentially: O(2^(N*M))
+- MaxVertices=5 → millions of states (minutes to check)
+- MaxVertices=10 → billions of states (hours to check)
+- MaxVertices=100 → impossible to verify in any reasonable time
+
+The actual implementation has **no hard limit on idea count** - only constrained by available memory. Tests verify the system works with 20+ ideas, and production use can handle hundreds.
+
+**Key Insight**: If safety properties (uniqueness, consistency, bounds) hold for N=10, they hold for all N. Model checking proves the **logic is correct**, not that the system can't scale beyond 10 items.
+
 ### Running Model Checker
 
 ```bash

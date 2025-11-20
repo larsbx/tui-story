@@ -18,6 +18,9 @@ EXTENDS Naturals, Sequences, FiniteSets, Reals, TLC
 
 CONSTANTS
     MaxVertices,        \* Maximum number of vertices (ideas)
+                        \* NOTE: This is a MODEL CHECKING constraint only!
+                        \* The actual implementation has no hard limit on vertices.
+                        \* Set to small value (e.g., 10) for tractable state space.
     LayoutWidth,        \* Width of layout area
     LayoutHeight,       \* Height of layout area
     MinCertainty,       \* Minimum certainty for relationships (0.5)
