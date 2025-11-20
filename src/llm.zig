@@ -155,9 +155,103 @@ pub const LLMClient = struct {
     }
 
     fn parseResponse(self: *LLMClient, response: []const u8) ![]Relationship {
-        _ = response;
-        // TODO: Parse JSON response
-        return try self.allocator.alloc(Relationship, 0);
+        // Parse JSON response from LLM API
+        const parsed = std.json.parseFromSlice(
+            std.json.Value,
+            self.allocator,
+            response,
+            .{},
+        ) catch |err| {
+            log.err("Failed to parse JSON response: {}", .{err});
+            return error.InvalidJSON;
+        };
+        defer parsed.deinit();
+
+        const root = parsed.value;
+        if (root != .array) {
+            log.err("Expected JSON array, got: {}", .{root});
+            return error.InvalidJSONFormat;
+        }
+
+        var relationships = std.ArrayList(Relationship).init(self.allocator);
+        errdefer {
+            for (relationships.items) |*rel| {
+                rel.deinit(self.allocator);
+            }
+            relationships.deinit();
+        }
+
+        for (root.array.items) |item| {
+            if (item != .object) {
+                log.warn("Skipping non-object item in array", .{});
+                continue;
+            }
+
+            const obj = item.object;
+
+            // Extract required fields
+            const from = obj.get("from") orelse {
+                log.warn("Missing 'from' field in relationship", .{});
+                continue;
+            };
+            const to = obj.get("to") orelse {
+                log.warn("Missing 'to' field in relationship", .{});
+                continue;
+            };
+            const rel_type = obj.get("type") orelse {
+                log.warn("Missing 'type' field in relationship", .{});
+                continue;
+            };
+            const certainty = obj.get("certainty") orelse {
+                log.warn("Missing 'certainty' field in relationship", .{});
+                continue;
+            };
+            const desc = obj.get("description") orelse {
+                log.warn("Missing 'description' field in relationship", .{});
+                continue;
+            };
+
+            // Validate field types
+            if (from != .string or to != .string or rel_type != .string or desc != .string) {
+                log.warn("Invalid field types in relationship object", .{});
+                continue;
+            }
+            if (certainty != .number_string and certainty != .float and certainty != .integer) {
+                log.warn("Invalid certainty type", .{});
+                continue;
+            }
+
+            // Convert relationship type string to enum
+            const relation_type = graph.RelationType.fromString(rel_type.string) catch {
+                log.warn("Unknown relationship type: {s}", .{rel_type.string});
+                continue;
+            };
+
+            // Extract certainty value
+            const certainty_value: f32 = switch (certainty) {
+                .float => |f| @as(f32, @floatCast(f)),
+                .integer => |i| @as(f32, @floatFromInt(i)),
+                .number_string => |s| std.fmt.parseFloat(f32, s) catch {
+                    log.warn("Invalid certainty number string: {s}", .{s});
+                    continue;
+                },
+                else => unreachable,
+            };
+
+            // Create relationship
+            const relationship = Relationship{
+                .from_idea = try self.allocator.dupe(u8, from.string),
+                .to_idea = try self.allocator.dupe(u8, to.string),
+                .relation_type = relation_type,
+                .certainty = certainty_value,
+                .description = try self.allocator.dupe(u8, desc.string),
+            };
+
+            try relationships.append(relationship);
+        }
+
+        log.info("Parsed {} relationships from response", .{relationships.items.len});
+        return relationships.toOwnedSlice();
     }
 
     pub fn getMockRelationships(self: *LLMClient, group1: []const []const u8, group2: []const []const u8) ![]Relationship {
