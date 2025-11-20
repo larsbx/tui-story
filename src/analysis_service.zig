@@ -1,6 +1,6 @@
 const std = @import("std");
-const graph = @import("graph.zig");
-const llm = @import("llm.zig");
+const graph = @import("graph");
+const llm = @import("llm");
 
 const log = std.log.scoped(.analysis_service);
 

@@ -1,9 +1,9 @@
 const std = @import("std");
 const vaxis = @import("vaxis");
-const graph = @import("graph.zig");
-const llm = @import("llm.zig");
-const validation = @import("validation.zig");
-const analysis_service = @import("analysis_service.zig");
+const graph = @import("graph");
+const llm = @import("llm");
+const validation = @import("validation");
+const analysis_service = @import("analysis_service");
 
 const log = std.log.scoped(.ui);
 

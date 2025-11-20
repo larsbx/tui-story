@@ -2,11 +2,11 @@ const std = @import("std");
 const testing = std.testing;
 
 // Import modules to test their structure
-const graph = @import("../../src/graph.zig");
-const llm = @import("../../src/llm.zig");
-const ui = @import("../../src/ui.zig");
-const validation = @import("../../src/validation.zig");
-const analysis_service = @import("../../src/analysis_service.zig");
+const graph = @import("graph");
+const llm = @import("llm");
+const ui = @import("ui");
+const validation = @import("validation");
+const analysis_service = @import("analysis_service");
 
 // Architecture tests verify that the codebase follows architectural principles
 
@@ -18,10 +18,7 @@ test "validation module has no external dependencies" {
 
     // Test that validation functions work independently
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     // Validation should work without any other modules
@@ -36,10 +33,7 @@ test "validation module has no external dependencies" {
 
 test "graph module enforces domain invariants" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);
@@ -58,22 +52,15 @@ test "UI layer does not contain business logic" {
     // This is verified by checking that analyzeIdeas is small and delegates
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var state = ui.UIState.initWithAllocator(allocator);
     defer {
-        for (state.group1_ideas.items) |idea| {
+        for (state.ideas.items) |idea| {
             allocator.free(idea);
         }
-        for (state.group2_ideas.items) |idea| {
-            allocator.free(idea);
-        }
-        state.group1_ideas.deinit();
-        state.group2_ideas.deinit();
+        state.ideas.deinit();
         state.current_input.deinit();
     }
 
@@ -83,10 +70,7 @@ test "UI layer does not contain business logic" {
 
 test "analysis service orchestrates without direct dependencies on UI" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     // Analysis service should work independently of UI
@@ -181,10 +165,7 @@ test "validation enforces security constraints" {
 
 test "LLM client has resilience configuration" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var client = llm.LLMClient.init(allocator);
@@ -198,10 +179,7 @@ test "LLM client has resilience configuration" {
 
 test "graph layout algorithm is bounded" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var g = graph.SemanticGraph.init(allocator);

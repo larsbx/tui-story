@@ -1,5 +1,5 @@
 const std = @import("std");
-const graph = @import("graph.zig");
+const graph = @import("graph");
 
 const log = std.log.scoped(.llm);
 
@@ -68,7 +68,7 @@ pub const LLMClient = struct {
         return try self.parseResponse(response);
     }
 
-    fn buildPrompt(self: *LLMClient, group1: []const []const u8, group2: []const []const u8) ![]const u8 {
+    pub fn buildPrompt(self: *LLMClient, group1: []const []const u8, group2: []const []const u8) ![]const u8 {
         var prompt = std.ArrayList(u8).init(self.allocator);
         defer prompt.deinit();
 
@@ -99,8 +99,6 @@ pub const LLMClient = struct {
     }
 
     fn callAPI(self: *LLMClient, prompt: []const u8) ![]const u8 {
-        _ = prompt;
-
         var retries: u8 = 0;
         var backoff_ms = self.config.initial_backoff_ms;
 
@@ -162,7 +160,7 @@ pub const LLMClient = struct {
         return try self.allocator.alloc(Relationship, 0);
     }
 
-    fn getMockRelationships(self: *LLMClient, group1: []const []const u8, group2: []const []const u8) ![]Relationship {
+    pub fn getMockRelationships(self: *LLMClient, group1: []const []const u8, group2: []const []const u8) ![]Relationship {
         log.debug("Generating mock relationships", .{});
         var relationships = std.ArrayList(Relationship).init(self.allocator);
 

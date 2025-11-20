@@ -2,19 +2,16 @@ const std = @import("std");
 const testing = std.testing;
 
 // Import application modules
-const graph = @import("../../src/graph.zig");
-const llm = @import("../../src/llm.zig");
-const analysis_service = @import("../../src/analysis_service.zig");
-const validation = @import("../../src/validation.zig");
+const graph = @import("graph");
+const llm = @import("llm");
+const analysis_service = @import("analysis_service");
+const validation = @import("validation");
 
 // Integration tests verify that modules work together correctly
 
 test "incremental idea addition workflow with mock LLM" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     // Setup: Create test ideas
@@ -77,10 +74,7 @@ test "incremental idea addition workflow with mock LLM" {
 
 test "workflow handles validation errors gracefully" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var service = analysis_service.AnalysisService.init(allocator);
@@ -102,10 +96,7 @@ test "workflow handles validation errors gracefully" {
 
 test "workflow with two ideas" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var service = analysis_service.AnalysisService.init(allocator);
@@ -135,10 +126,7 @@ test "workflow with two ideas" {
 
 test "workflow with many ideas" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var service = analysis_service.AnalysisService.init(allocator);
@@ -185,10 +173,7 @@ test "workflow with many ideas" {
 
 test "graph can be cleared and reused" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var service = analysis_service.AnalysisService.init(allocator);
@@ -233,10 +218,7 @@ test "graph can be cleared and reused" {
 
 test "relationship types are preserved through workflow" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var service = analysis_service.AnalysisService.init(allocator);

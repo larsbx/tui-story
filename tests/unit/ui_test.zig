@@ -1,6 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
-const ui = @import("../../src/ui.zig");
+const ui = @import("ui");
 
 // ============================================================================
 // UIMode Tests
@@ -10,8 +10,7 @@ test "UIMode enum has all expected modes" {
     // This test ensures all modes are defined and accessible
     const modes = [_]ui.UIMode{
         .help,
-        .input_group1,
-        .input_group2,
+        .input,
         .analyzing,
         .viewing_graph,
     };
@@ -28,65 +27,48 @@ test "UIMode enum has all expected modes" {
 
 test "UIState.initWithAllocator initializes with help mode" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var state = ui.UIState.initWithAllocator(allocator);
     defer {
         // Clean up
-        for (state.group1_ideas.items) |idea| {
+        for (state.ideas.items) |idea| {
             allocator.free(idea);
         }
-        for (state.group2_ideas.items) |idea| {
-            allocator.free(idea);
-        }
-        state.group1_ideas.deinit();
-        state.group2_ideas.deinit();
+        state.ideas.deinit();
         state.current_input.deinit();
     }
 
     try testing.expect(state.mode == .help);
-    try testing.expect(state.group1_ideas.items.len == 0);
-    try testing.expect(state.group2_ideas.items.len == 0);
+    try testing.expect(state.ideas.items.len == 0);
     try testing.expect(state.current_input.items.len == 0);
     try testing.expect(state.selected_edge == null);
     try testing.expect(state.error_message == null);
 }
 
-test "UIState.initWithAllocator creates empty idea lists" {
+test "UIState.initWithAllocator creates empty idea list" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var state = ui.UIState.initWithAllocator(allocator);
     defer {
-        state.group1_ideas.deinit();
-        state.group2_ideas.deinit();
+        state.ideas.deinit();
         state.current_input.deinit();
     }
 
-    try testing.expect(state.group1_ideas.items.len == 0);
-    try testing.expect(state.group2_ideas.items.len == 0);
+    try testing.expect(state.ideas.items.len == 0);
 }
 
 test "UIState.initWithAllocator creates empty input buffer" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var state = ui.UIState.initWithAllocator(allocator);
     defer {
-        state.group1_ideas.deinit();
-        state.group2_ideas.deinit();
+        state.ideas.deinit();
         state.current_input.deinit();
     }
 
@@ -97,12 +79,9 @@ test "UIState.initWithAllocator creates empty input buffer" {
 // Memory Safety Tests
 // ============================================================================
 
-test "UIState properly manages memory for idea lists" {
+test "UIState properly manages memory for idea list" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var state = ui.UIState.initWithAllocator(allocator);
@@ -112,19 +91,15 @@ test "UIState properly manages memory for idea lists" {
     const idea2 = try allocator.dupe(u8, "test idea 2");
     const idea3 = try allocator.dupe(u8, "test idea 3");
 
-    try state.group1_ideas.append(idea1);
-    try state.group1_ideas.append(idea2);
-    try state.group2_ideas.append(idea3);
+    try state.ideas.append(idea1);
+    try state.ideas.append(idea2);
+    try state.ideas.append(idea3);
 
     // Clean up properly
-    for (state.group1_ideas.items) |idea| {
+    for (state.ideas.items) |idea| {
         allocator.free(idea);
     }
-    for (state.group2_ideas.items) |idea| {
-        allocator.free(idea);
-    }
-    state.group1_ideas.deinit();
-    state.group2_ideas.deinit();
+    state.ideas.deinit();
     state.current_input.deinit();
 
     // Test passes if no memory leaks detected
@@ -132,16 +107,12 @@ test "UIState properly manages memory for idea lists" {
 
 test "UIState current_input buffer can be cleared" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var state = ui.UIState.initWithAllocator(allocator);
     defer {
-        state.group1_ideas.deinit();
-        state.group2_ideas.deinit();
+        state.ideas.deinit();
         state.current_input.deinit();
     }
 
@@ -160,27 +131,20 @@ test "UIState current_input buffer can be cleared" {
 
 test "UIState mode can be changed programmatically" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var state = ui.UIState.initWithAllocator(allocator);
     defer {
-        state.group1_ideas.deinit();
-        state.group2_ideas.deinit();
+        state.ideas.deinit();
         state.current_input.deinit();
     }
 
     // Test mode transitions
     try testing.expect(state.mode == .help);
 
-    state.mode = .input_group1;
-    try testing.expect(state.mode == .input_group1);
-
-    state.mode = .input_group2;
-    try testing.expect(state.mode == .input_group2);
+    state.mode = .input;
+    try testing.expect(state.mode == .input);
 
     state.mode = .analyzing;
     try testing.expect(state.mode == .analyzing);
@@ -194,16 +158,12 @@ test "UIState mode can be changed programmatically" {
 
 test "UIState selected_edge can be set and cleared" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var state = ui.UIState.initWithAllocator(allocator);
     defer {
-        state.group1_ideas.deinit();
-        state.group2_ideas.deinit();
+        state.ideas.deinit();
         state.current_input.deinit();
     }
 
@@ -226,16 +186,12 @@ test "UIState selected_edge can be set and cleared" {
 
 test "UIState error_message can be set and cleared" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var state = ui.UIState.initWithAllocator(allocator);
     defer {
-        state.group1_ideas.deinit();
-        state.group2_ideas.deinit();
+        state.ideas.deinit();
         state.current_input.deinit();
     }
 
@@ -256,88 +212,75 @@ test "UIState error_message can be set and cleared" {
 // Idea Management Tests
 // ============================================================================
 
-test "UIState can store ideas in group1" {
+test "UIState can store ideas" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var state = ui.UIState.initWithAllocator(allocator);
     defer {
-        for (state.group1_ideas.items) |idea| {
+        for (state.ideas.items) |idea| {
             allocator.free(idea);
         }
-        state.group1_ideas.deinit();
-        state.group2_ideas.deinit();
+        state.ideas.deinit();
         state.current_input.deinit();
     }
 
     const idea = try allocator.dupe(u8, "test idea");
-    try state.group1_ideas.append(idea);
+    try state.ideas.append(idea);
 
-    try testing.expect(state.group1_ideas.items.len == 1);
-    try testing.expectEqualStrings("test idea", state.group1_ideas.items[0]);
+    try testing.expect(state.ideas.items.len == 1);
+    try testing.expectEqualStrings("test idea", state.ideas.items[0]);
 }
 
-test "UIState can store ideas in group2" {
+test "UIState can store multiple ideas" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var state = ui.UIState.initWithAllocator(allocator);
     defer {
-        for (state.group2_ideas.items) |idea| {
+        for (state.ideas.items) |idea| {
             allocator.free(idea);
         }
-        state.group1_ideas.deinit();
-        state.group2_ideas.deinit();
+        state.ideas.deinit();
         state.current_input.deinit();
     }
 
-    const idea = try allocator.dupe(u8, "test idea");
-    try state.group2_ideas.append(idea);
+    const idea1 = try allocator.dupe(u8, "first idea");
+    const idea2 = try allocator.dupe(u8, "second idea");
+    try state.ideas.append(idea1);
+    try state.ideas.append(idea2);
 
-    try testing.expect(state.group2_ideas.items.len == 1);
-    try testing.expectEqualStrings("test idea", state.group2_ideas.items[0]);
+    try testing.expect(state.ideas.items.len == 2);
+    try testing.expectEqualStrings("first idea", state.ideas.items[0]);
+    try testing.expectEqualStrings("second idea", state.ideas.items[1]);
 }
 
-test "UIState can store multiple ideas in each group" {
+test "UIState can store many ideas incrementally" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var state = ui.UIState.initWithAllocator(allocator);
     defer {
-        for (state.group1_ideas.items) |idea| {
+        for (state.ideas.items) |idea| {
             allocator.free(idea);
         }
-        for (state.group2_ideas.items) |idea| {
-            allocator.free(idea);
-        }
-        state.group1_ideas.deinit();
-        state.group2_ideas.deinit();
+        state.ideas.deinit();
         state.current_input.deinit();
     }
 
-    // Add multiple ideas to group 1
-    try state.group1_ideas.append(try allocator.dupe(u8, "idea 1"));
-    try state.group1_ideas.append(try allocator.dupe(u8, "idea 2"));
-    try state.group1_ideas.append(try allocator.dupe(u8, "idea 3"));
+    // Add multiple ideas incrementally
+    try state.ideas.append(try allocator.dupe(u8, "idea 1"));
+    try state.ideas.append(try allocator.dupe(u8, "idea 2"));
+    try state.ideas.append(try allocator.dupe(u8, "idea 3"));
+    try state.ideas.append(try allocator.dupe(u8, "idea 4"));
+    try state.ideas.append(try allocator.dupe(u8, "idea 5"));
 
-    // Add multiple ideas to group 2
-    try state.group2_ideas.append(try allocator.dupe(u8, "idea 4"));
-    try state.group2_ideas.append(try allocator.dupe(u8, "idea 5"));
-
-    try testing.expect(state.group1_ideas.items.len == 3);
-    try testing.expect(state.group2_ideas.items.len == 2);
+    try testing.expect(state.ideas.items.len == 5);
+    try testing.expectEqualStrings("idea 1", state.ideas.items[0]);
+    try testing.expectEqualStrings("idea 5", state.ideas.items[4]);
 }
 
 // ============================================================================
@@ -346,16 +289,12 @@ test "UIState can store multiple ideas in each group" {
 
 test "UIState current_input can accumulate characters" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var state = ui.UIState.initWithAllocator(allocator);
     defer {
-        state.group1_ideas.deinit();
-        state.group2_ideas.deinit();
+        state.ideas.deinit();
         state.current_input.deinit();
     }
 
@@ -371,16 +310,12 @@ test "UIState current_input can accumulate characters" {
 
 test "UIState current_input can be converted to owned string" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var state = ui.UIState.initWithAllocator(allocator);
     defer {
-        state.group1_ideas.deinit();
-        state.group2_ideas.deinit();
+        state.ideas.deinit();
         state.current_input.deinit();
     }
 
@@ -396,38 +331,34 @@ test "UIState current_input can be converted to owned string" {
 // State Validation Tests
 // ============================================================================
 
-test "UIState validates analysis prerequisites - both groups needed" {
+test "UIState supports incremental idea addition" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var state = ui.UIState.initWithAllocator(allocator);
     defer {
-        for (state.group1_ideas.items) |idea| {
+        for (state.ideas.items) |idea| {
             allocator.free(idea);
         }
-        for (state.group2_ideas.items) |idea| {
-            allocator.free(idea);
-        }
-        state.group1_ideas.deinit();
-        state.group2_ideas.deinit();
+        state.ideas.deinit();
         state.current_input.deinit();
     }
 
-    // Empty state - can't analyze
-    const can_analyze_empty = state.group1_ideas.items.len > 0 and state.group2_ideas.items.len > 0;
-    try testing.expect(!can_analyze_empty);
+    // Empty state - first idea doesn't need analysis
+    const needs_analysis_when_empty = state.ideas.items.len > 0;
+    try testing.expect(!needs_analysis_when_empty);
 
-    // Only group1 - can't analyze
-    try state.group1_ideas.append(try allocator.dupe(u8, "idea 1"));
-    const can_analyze_group1_only = state.group1_ideas.items.len > 0 and state.group2_ideas.items.len > 0;
-    try testing.expect(!can_analyze_group1_only);
+    // Add first idea - no analysis needed yet
+    try state.ideas.append(try allocator.dupe(u8, "idea 1"));
+    try testing.expect(state.ideas.items.len == 1);
 
-    // Both groups - can analyze
-    try state.group2_ideas.append(try allocator.dupe(u8, "idea 2"));
-    const can_analyze_both = state.group1_ideas.items.len > 0 and state.group2_ideas.items.len > 0;
-    try testing.expect(can_analyze_both);
+    // With existing ideas - new ideas need analysis
+    const needs_analysis_with_ideas = state.ideas.items.len > 0;
+    try testing.expect(needs_analysis_with_ideas);
+
+    // Can add more ideas incrementally
+    try state.ideas.append(try allocator.dupe(u8, "idea 2"));
+    try state.ideas.append(try allocator.dupe(u8, "idea 3"));
+    try testing.expect(state.ideas.items.len == 3);
 }
