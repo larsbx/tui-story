@@ -8,8 +8,7 @@ const analysis_service = @import("analysis_service.zig");
 const log = std.log.scoped(.ui);
 
 pub const UIMode = enum {
-    input_group1,
-    input_group2,
+    input,
     analyzing,
     viewing_graph,
     help,
@@ -17,8 +16,7 @@ pub const UIMode = enum {
 
 pub const UIState = struct {
     mode: UIMode,
-    group1_ideas: std.ArrayList([]const u8),
-    group2_ideas: std.ArrayList([]const u8),
+    ideas: std.ArrayList([]const u8),
     current_input: std.ArrayList(u8),
     selected_edge: ?usize,
     error_message: ?[]const u8,
@@ -29,8 +27,7 @@ pub const UIState = struct {
         // We'll set the allocator later
         return .{
             .mode = .help,
-            .group1_ideas = undefined,
-            .group2_ideas = undefined,
+            .ideas = undefined,
             .current_input = undefined,
             .selected_edge = null,
             .error_message = null,
@@ -41,8 +38,7 @@ pub const UIState = struct {
     pub fn initWithAllocator(allocator: std.mem.Allocator) UIState {
         return .{
             .mode = .help,
-            .group1_ideas = std.ArrayList([]const u8).init(allocator),
-            .group2_ideas = std.ArrayList([]const u8).init(allocator),
+            .ideas = std.ArrayList([]const u8).init(allocator),
             .current_input = std.ArrayList(u8).init(allocator),
             .selected_edge = null,
             .error_message = null,
@@ -54,21 +50,16 @@ pub const UIState = struct {
     pub fn handleKey(self: *UIState, key: vaxis.Key, g: *graph.SemanticGraph, llm_client: *llm.LLMClient) !void {
         switch (self.mode) {
             .help => {
-                if (key.matches('1', .{})) {
-                    self.mode = .input_group1;
+                if (key.matches('e', .{})) {
+                    self.mode = .input;
                     self.current_input.clearRetainingCapacity();
-                } else if (key.matches('2', .{}) and self.group1_ideas.items.len > 0) {
-                    self.mode = .input_group2;
-                    self.current_input.clearRetainingCapacity();
-                } else if (key.matches('a', .{}) and self.group1_ideas.items.len > 0 and self.group2_ideas.items.len > 0) {
-                    try self.analyzeIdeas(g, llm_client);
                 } else if (key.matches('v', .{}) and g.vertices.items.len > 0) {
                     self.mode = .viewing_graph;
                 } else if (key.matches('r', .{})) {
                     try self.reset(g);
                 }
             },
-            .input_group1, .input_group2 => {
+            .input => {
                 if (key.matches(vaxis.Key.enter, .{})) {
                     if (self.current_input.items.len > 0) {
                         // Validate input before accepting
@@ -83,15 +74,20 @@ pub const UIState = struct {
                             return;
                         };
 
-                        // Sanitize and store the input
+                        // Sanitize the input
                         const sanitized = try validation.sanitizeInput(self.current_input.items, self.allocator);
-                        if (self.mode == .input_group1) {
-                            try self.group1_ideas.append(sanitized);
-                        } else {
-                            try self.group2_ideas.append(sanitized);
-                        }
+
+                        // Analyze against existing ideas and add to graph
+                        try self.analyzeNewIdea(sanitized, g, llm_client);
+
+                        // Store the idea
+                        try self.ideas.append(sanitized);
+
                         self.current_input.clearRetainingCapacity();
                         self.error_message = null; // Clear any previous errors
+
+                        // Show the updated graph
+                        self.mode = .viewing_graph;
                     }
                 } else if (key.matches(vaxis.Key.escape, .{})) {
                     self.mode = .help;
@@ -127,13 +123,19 @@ pub const UIState = struct {
         }
     }
 
-    fn analyzeIdeas(self: *UIState, g: *graph.SemanticGraph, llm_client: *llm.LLMClient) !void {
+    fn analyzeNewIdea(self: *UIState, new_idea: []const u8, g: *graph.SemanticGraph, llm_client: *llm.LLMClient) !void {
+        // If this is the first idea, just add it to the graph
+        if (self.ideas.items.len == 0) {
+            _ = try g.addVertex(new_idea, 0);
+            return;
+        }
+
         self.mode = .analyzing;
 
-        // Delegate business logic to analysis service
-        try self.analysis.analyzeGroups(
-            self.group1_ideas.items,
-            self.group2_ideas.items,
+        // Analyze the new idea against all existing ideas
+        try self.analysis.analyzeNewIdea(
+            new_idea,
+            self.ideas.items,
             g,
             llm_client,
         );
@@ -145,14 +147,10 @@ pub const UIState = struct {
         log.info("Resetting all data", .{});
 
         // Clear ideas
-        for (self.group1_ideas.items) |idea| {
+        for (self.ideas.items) |idea| {
             self.allocator.free(idea);
         }
-        for (self.group2_ideas.items) |idea| {
-            self.allocator.free(idea);
-        }
-        self.group1_ideas.clearRetainingCapacity();
-        self.group2_ideas.clearRetainingCapacity();
+        self.ideas.clearRetainingCapacity();
         self.current_input.clearRetainingCapacity();
 
         // Clear graph
@@ -167,14 +165,14 @@ pub const UIState = struct {
 
 pub fn render(win: vaxis.Window, state: *UIState, g: *graph.SemanticGraph) !void {
     switch (state.mode) {
-        .help => try renderHelp(win, state),
-        .input_group1, .input_group2 => try renderInput(win, state),
+        .help => try renderHelp(win, state, g),
+        .input => try renderInput(win, state),
         .analyzing => try renderAnalyzing(win),
         .viewing_graph => try renderGraph(win, state, g),
     }
 }
 
-fn renderHelp(win: vaxis.Window, state: *UIState) !void {
+fn renderHelp(win: vaxis.Window, state: *UIState, g: *graph.SemanticGraph) !void {
     const title = "Semantic Relationship Graph Analyzer";
     _ = try win.printSegment(.{ .text = title, .style = .{ .bold = true, .fg = .{ .index = 6 } } }, .{
         .row_offset = 1,
@@ -184,7 +182,8 @@ fn renderHelp(win: vaxis.Window, state: *UIState) !void {
     var row: usize = 3;
 
     const help_text = [_][]const u8{
-        "Welcome! This tool analyzes semantic relationships between two groups of ideas.",
+        "Welcome! Enter ideas one at a time and watch your semantic graph grow.",
+        "Each new idea is analyzed against all existing ideas to discover relationships.",
         "",
         "Status:",
     };
@@ -195,22 +194,20 @@ fn renderHelp(win: vaxis.Window, state: *UIState) !void {
     }
 
     // Show status
-    const g1_status = try std.fmt.allocPrint(state.allocator, "  Group A: {} ideas", .{state.group1_ideas.items.len});
-    defer state.allocator.free(g1_status);
-    _ = try win.printSegment(.{ .text = g1_status, .style = .{ .fg = .{ .index = if (state.group1_ideas.items.len > 0) 2 else 8 } } }, .{ .row_offset = row, .col_offset = 2 });
+    const ideas_status = try std.fmt.allocPrint(state.allocator, "  Ideas in graph: {}", .{state.ideas.items.len});
+    defer state.allocator.free(ideas_status);
+    _ = try win.printSegment(.{ .text = ideas_status, .style = .{ .fg = .{ .index = if (state.ideas.items.len > 0) 2 else 8 } } }, .{ .row_offset = row, .col_offset = 2 });
     row += 1;
 
-    const g2_status = try std.fmt.allocPrint(state.allocator, "  Group B: {} ideas", .{state.group2_ideas.items.len});
-    defer state.allocator.free(g2_status);
-    _ = try win.printSegment(.{ .text = g2_status, .style = .{ .fg = .{ .index = if (state.group2_ideas.items.len > 0) 2 else 8 } } }, .{ .row_offset = row, .col_offset = 2 });
+    const edges_status = try std.fmt.allocPrint(state.allocator, "  Relationships found: {}", .{g.edges.items.len});
+    defer state.allocator.free(edges_status);
+    _ = try win.printSegment(.{ .text = edges_status, .style = .{ .fg = .{ .index = if (g.edges.items.len > 0) 2 else 8 } } }, .{ .row_offset = row, .col_offset = 2 });
     row += 2;
 
     const commands = [_][]const u8{
         "Commands:",
-        "  [1] - Add ideas to Group A",
-        "  [2] - Add ideas to Group B (requires Group A)",
-        "  [a] - Analyze relationships (requires both groups)",
-        "  [v] - View graph (after analysis)",
+        "  [e] - Enter a new idea",
+        "  [v] - View graph (if ideas exist)",
         "  [r] - Reset all data",
         "  [q] - Quit",
     };
@@ -220,56 +217,44 @@ fn renderHelp(win: vaxis.Window, state: *UIState) !void {
         row += 1;
     }
 
-    if (state.group1_ideas.items.len > 0) {
+    if (state.ideas.items.len > 0) {
         row += 1;
-        _ = try win.printSegment(.{ .text = "Group A Ideas:", .style = .{ .bold = true } }, .{ .row_offset = row, .col_offset = 2 });
+        _ = try win.printSegment(.{ .text = "Your Ideas:", .style = .{ .bold = true } }, .{ .row_offset = row, .col_offset = 2 });
         row += 1;
-        for (state.group1_ideas.items) |idea| {
-            const line = try std.fmt.allocPrint(state.allocator, "  • {s}", .{idea});
+        for (state.ideas.items, 0..) |idea, i| {
+            const line = try std.fmt.allocPrint(state.allocator, "  {d}. {s}", .{i + 1, idea});
             defer state.allocator.free(line);
-            _ = try win.printSegment(.{ .text = line, .style = .{ .fg = .{ .index = 4 } } }, .{ .row_offset = row, .col_offset = 2 });
+            _ = try win.printSegment(.{ .text = line, .style = .{ .fg = .{ .index = 6 } } }, .{ .row_offset = row, .col_offset = 2 });
             row += 1;
             if (row >= win.height - 2) break;
-        }
-    }
-
-    if (state.group2_ideas.items.len > 0) {
-        row += 1;
-        if (row < win.height - 2) {
-            _ = try win.printSegment(.{ .text = "Group B Ideas:", .style = .{ .bold = true } }, .{ .row_offset = row, .col_offset = 2 });
-            row += 1;
-            for (state.group2_ideas.items) |idea| {
-                if (row >= win.height - 2) break;
-                const line = try std.fmt.allocPrint(state.allocator, "  • {s}", .{idea});
-                defer state.allocator.free(line);
-                _ = try win.printSegment(.{ .text = line, .style = .{ .fg = .{ .index = 5 } } }, .{ .row_offset = row, .col_offset = 2 });
-                row += 1;
-            }
         }
     }
 }
 
 fn renderInput(win: vaxis.Window, state: *UIState) !void {
-    const group_name = if (state.mode == .input_group1) "Group A" else "Group B";
-    const title = try std.fmt.allocPrint(state.allocator, "Enter ideas for {s} (one per line)", .{group_name});
-    defer state.allocator.free(title);
+    const title_text = if (state.ideas.items.len == 0)
+        "Enter your first idea"
+    else
+        "Enter another idea";
 
-    _ = try win.printSegment(.{ .text = title, .style = .{ .bold = true, .fg = .{ .index = 6 } } }, .{
+    _ = try win.printSegment(.{ .text = title_text, .style = .{ .bold = true, .fg = .{ .index = 6 } } }, .{
         .row_offset = 1,
         .col_offset = 2,
     });
 
     var row: usize = 3;
 
-    const ideas = if (state.mode == .input_group1) state.group1_ideas.items else state.group2_ideas.items;
-    for (ideas) |idea| {
-        const line = try std.fmt.allocPrint(state.allocator, "  • {s}", .{idea});
-        defer state.allocator.free(line);
-        _ = try win.printSegment(.{ .text = line }, .{ .row_offset = row, .col_offset = 2 });
+    if (state.ideas.items.len > 0) {
+        const context = try std.fmt.allocPrint(state.allocator, "Current ideas: {}", .{state.ideas.items.len});
+        defer state.allocator.free(context);
+        _ = try win.printSegment(.{ .text = context, .style = .{ .fg = .{ .index = 8 } } }, .{ .row_offset = row, .col_offset = 2 });
         row += 1;
+
+        const hint = "Your new idea will be compared to all existing ideas";
+        _ = try win.printSegment(.{ .text = hint, .style = .{ .fg = .{ .index = 8 } } }, .{ .row_offset = row, .col_offset = 2 });
+        row += 2;
     }
 
-    row += 1;
     const prompt = try std.fmt.allocPrint(state.allocator, "> {s}_", .{state.current_input.items});
     defer state.allocator.free(prompt);
     _ = try win.printSegment(.{ .text = prompt, .style = .{ .fg = .{ .index = 2 } } }, .{ .row_offset = row, .col_offset = 2 });
@@ -284,7 +269,7 @@ fn renderInput(win: vaxis.Window, state: *UIState) !void {
     }
 
     row = win.height - 3;
-    _ = try win.printSegment(.{ .text = "[Enter] Add idea  [Esc] Back to menu", .style = .{ .fg = .{ .index = 8 } } }, .{
+    _ = try win.printSegment(.{ .text = "[Enter] Submit idea  [Esc] Back to menu", .style = .{ .fg = .{ .index = 8 } } }, .{
         .row_offset = row,
         .col_offset = 2,
     });
@@ -347,8 +332,7 @@ fn renderGraph(win: vaxis.Window, state: *UIState, g: *graph.SemanticGraph) !voi
         const col = @as(usize, @intFromFloat(vertex.x));
 
         if (row < win.height and col < win.width) {
-            const color: u8 = if (vertex.group == 0) 4 else 5; // blue vs magenta
-            const style: vaxis.Style = .{ .fg = .{ .index = color }, .bold = true };
+            const style: vaxis.Style = .{ .fg = .{ .index = 6 }, .bold = true };
 
             // Truncate long content
             const max_len = 20;
