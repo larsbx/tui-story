@@ -56,6 +56,8 @@ java -jar tla2tools.jar -config SemanticGraphTUI.cfg SemanticGraphTUI.tla
 - **Graph Topology**: Connectivity, density, and layout properties
 - **Incremental Construction**: Adding ideas one at a time
 
+**Important**: `MaxEdges` is derived from `MaxVertices` as `MaxVertices * (MaxVertices - 1)`, representing the maximum possible edges in a directed graph where every idea can have relationships with every other idea (excluding self-loops). For 10 vertices, this allows up to 90 edges (10 × 9).
+
 **Verified Properties**:
 
 **Structural Invariants**:

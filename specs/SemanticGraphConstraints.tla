@@ -18,18 +18,20 @@ EXTENDS Naturals, Sequences, FiniteSets, Reals, TLC
 
 CONSTANTS
     MaxVertices,        \* Maximum number of vertices (ideas)
-    MaxEdges,           \* Maximum number of edges (relationships)
     LayoutWidth,        \* Width of layout area
     LayoutHeight,       \* Height of layout area
     MinCertainty,       \* Minimum certainty for relationships (0.5)
     MaxCertainty        \* Maximum certainty for relationships (1.0)
 
 ASSUME MaxVertices \in Nat /\ MaxVertices > 0
-ASSUME MaxEdges \in Nat /\ MaxEdges >= 0
 ASSUME LayoutWidth > 0
 ASSUME LayoutHeight > 0
 ASSUME MinCertainty = 0.5
 ASSUME MaxCertainty = 1.0
+
+\* Derived constant: Maximum edges in a directed graph = N * (N - 1)
+\* Every vertex can connect to every other vertex (excluding self-loops)
+MaxEdges == MaxVertices * (MaxVertices - 1)
 
 (***************************************************************************
  * VARIABLES
