@@ -1,3 +1,11 @@
+---
+title: "Usage Examples"
+description: "Example analyses across different domains: political systems, programming, science, ML, economics"
+tags: [examples, use-cases, semantic-relationships, demo]
+last_updated: 2025-11-20
+version: 1.0
+---
+
 # Usage Examples
 
 ## Example 1: Political Systems Analysis
