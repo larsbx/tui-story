@@ -540,3 +540,11 @@ test "APIProvider.fromString returns custom for unknown providers" {
     try std.testing.expectEqual(APIProvider.custom, APIProvider.fromString(""));
     try std.testing.expectEqual(APIProvider.custom, APIProvider.fromString("unknown"));
 }
+
+test "APIProvider.fromString does not trim whitespace" {
+    // Document current behavior: whitespace is NOT trimmed
+    // If this causes issues, the function should be updated to trim input
+    try std.testing.expectEqual(APIProvider.custom, APIProvider.fromString(" anthropic"));
+    try std.testing.expectEqual(APIProvider.custom, APIProvider.fromString("anthropic "));
+    try std.testing.expectEqual(APIProvider.custom, APIProvider.fromString(" openai "));
+}
