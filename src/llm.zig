@@ -356,7 +356,6 @@ pub const LLMClient = struct {
         }
     }
 
-    // TODO: Add unit tests for parseResponse()
     fn parseResponse(self: *LLMClient, response: []const u8) ![]Relationship {
         // Parse JSON response from LLM API
         const parsed = std.json.parseFromSlice(
@@ -754,4 +753,104 @@ test "extractResponseText returns error for missing choices field (OpenAI)" {
 
     const result = client.extractResponseText(invalid_response);
     try std.testing.expectError(error.MissingChoicesField, result);
+}
+
+test "parseResponse parses valid relationship array" {
+    const allocator = std.testing.allocator;
+
+    var client = LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .anthropic,
+            .model = "claude-3",
+            .api_endpoint = "https://api.anthropic.com/v1/messages",
+            .auth_header = "x-api-key",
+            .auth_prefix = "",
+        },
+    };
+    defer client.http_client.deinit();
+
+    const response =
+        \\[{"from": "idea1", "to": "idea2", "type": "CAUSAL", "certainty": 0.85, "description": "causes"}]
+    ;
+
+    const relationships = try client.parseResponse(response);
+    defer {
+        for (relationships) |*rel| {
+            var r = rel.*;
+            r.deinit(allocator);
+        }
+        allocator.free(relationships);
+    }
+
+    try std.testing.expectEqual(@as(usize, 1), relationships.len);
+    try std.testing.expectEqualStrings("idea1", relationships[0].from_idea);
+    try std.testing.expectEqualStrings("idea2", relationships[0].to_idea);
+    try std.testing.expectEqual(graph.RelationType.causal, relationships[0].relation_type);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.85), relationships[0].certainty, 0.001);
+}
+
+test "parseResponse returns error for non-array JSON" {
+    const allocator = std.testing.allocator;
+
+    var client = LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .anthropic,
+            .model = "claude-3",
+            .api_endpoint = "https://api.anthropic.com/v1/messages",
+            .auth_header = "x-api-key",
+            .auth_prefix = "",
+        },
+    };
+    defer client.http_client.deinit();
+
+    const response = \\{"not": "an array"}
+    ;
+
+    const result = client.parseResponse(response);
+    try std.testing.expectError(error.InvalidJSONFormat, result);
+}
+
+test "parseResponse skips items with missing fields" {
+    const allocator = std.testing.allocator;
+
+    var client = LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .anthropic,
+            .model = "claude-3",
+            .api_endpoint = "https://api.anthropic.com/v1/messages",
+            .auth_header = "x-api-key",
+            .auth_prefix = "",
+        },
+    };
+    defer client.http_client.deinit();
+
+    // First item missing 'to' field, second item is valid
+    const response =
+        \\[{"from": "idea1", "type": "CAUSAL", "certainty": 0.5, "description": "test"}, {"from": "a", "to": "b", "type": "ANALOGOUS", "certainty": 0.9, "description": "similar"}]
+    ;
+
+    const relationships = try client.parseResponse(response);
+    defer {
+        for (relationships) |*rel| {
+            var r = rel.*;
+            r.deinit(allocator);
+        }
+        allocator.free(relationships);
+    }
+
+    // Should only have 1 relationship (the valid one)
+    try std.testing.expectEqual(@as(usize, 1), relationships.len);
+    try std.testing.expectEqualStrings("a", relationships[0].from_idea);
 }
