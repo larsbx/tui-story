@@ -293,7 +293,6 @@ pub const LLMClient = struct {
         }
     }
 
-    // TODO: Add unit tests for extractResponseText()
     fn extractResponseText(self: *LLMClient, response_body: []const u8) ![]const u8 {
         // Parse JSON response
         const response_json = try std.json.parseFromSlice(
@@ -649,4 +648,110 @@ test "buildRequestBody escapes special characters in prompt" {
 
     const content = parsed.value.object.get("messages").?.array.items[0].object.get("content").?.string;
     try std.testing.expectEqualStrings("Say \"hello\"\nNew line", content);
+}
+
+test "extractResponseText parses Anthropic format" {
+    const allocator = std.testing.allocator;
+
+    var client = LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .anthropic,
+            .model = "claude-3",
+            .api_endpoint = "https://api.anthropic.com/v1/messages",
+            .auth_header = "x-api-key",
+            .auth_prefix = "",
+        },
+    };
+    defer client.http_client.deinit();
+
+    const anthropic_response =
+        \\{"content": [{"type": "text", "text": "Hello from Claude"}], "model": "claude-3"}
+    ;
+
+    const text = try client.extractResponseText(anthropic_response);
+    defer allocator.free(text);
+
+    try std.testing.expectEqualStrings("Hello from Claude", text);
+}
+
+test "extractResponseText parses OpenAI format" {
+    const allocator = std.testing.allocator;
+
+    var client = LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .openai,
+            .model = "gpt-4",
+            .api_endpoint = "https://api.openai.com/v1/chat/completions",
+            .auth_header = "Authorization",
+            .auth_prefix = "Bearer ",
+        },
+    };
+    defer client.http_client.deinit();
+
+    const openai_response =
+        \\{"choices": [{"message": {"role": "assistant", "content": "Hello from GPT"}}]}
+    ;
+
+    const text = try client.extractResponseText(openai_response);
+    defer allocator.free(text);
+
+    try std.testing.expectEqualStrings("Hello from GPT", text);
+}
+
+test "extractResponseText returns error for missing content field (Anthropic)" {
+    const allocator = std.testing.allocator;
+
+    var client = LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .anthropic,
+            .model = "claude-3",
+            .api_endpoint = "https://api.anthropic.com/v1/messages",
+            .auth_header = "x-api-key",
+            .auth_prefix = "",
+        },
+    };
+    defer client.http_client.deinit();
+
+    const invalid_response = \\{"model": "claude-3"}
+    ;
+
+    const result = client.extractResponseText(invalid_response);
+    try std.testing.expectError(error.MissingContentField, result);
+}
+
+test "extractResponseText returns error for missing choices field (OpenAI)" {
+    const allocator = std.testing.allocator;
+
+    var client = LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .openai,
+            .model = "gpt-4",
+            .api_endpoint = "https://api.openai.com/v1/chat/completions",
+            .auth_header = "Authorization",
+            .auth_prefix = "Bearer ",
+        },
+    };
+    defer client.http_client.deinit();
+
+    const invalid_response = \\{"model": "gpt-4"}
+    ;
+
+    const result = client.extractResponseText(invalid_response);
+    try std.testing.expectError(error.MissingChoicesField, result);
 }
