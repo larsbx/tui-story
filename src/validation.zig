@@ -35,6 +35,7 @@ pub fn validateGroup(group: usize) ValidationError!void {
 }
 
 /// Validates vertex content for graph operations
+// TODO: Add unit tests for validateVertexContent()
 pub fn validateVertexContent(content: []const u8) ValidationError!void {
     if (content.len == 0) {
         return ValidationError.EmptyContent;

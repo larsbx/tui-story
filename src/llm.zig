@@ -9,6 +9,7 @@ pub const APIProvider = enum {
     openai,
     custom,
 
+    // TODO: Add unit tests for APIProvider.fromString()
     pub fn fromString(s: []const u8) APIProvider {
         if (std.ascii.eqlIgnoreCase(s, "anthropic")) return .anthropic;
         if (std.ascii.eqlIgnoreCase(s, "openai")) return .openai;
@@ -159,6 +160,7 @@ pub const LLMClient = struct {
         return prompt.toOwnedSlice();
     }
 
+    // TODO: Add unit tests for callAPI()
     fn callAPI(self: *LLMClient, prompt: []const u8) ![]const u8 {
         var retries: u8 = 0;
         var backoff_ms = self.config.initial_backoff_ms;
@@ -187,6 +189,7 @@ pub const LLMClient = struct {
         return error.MaxRetriesExceeded;
     }
 
+    // TODO: Add unit tests for makeAPIRequest()
     fn makeAPIRequest(self: *LLMClient, prompt: []const u8) ![]const u8 {
         const api_key = self.api_key orelse return error.MissingAPIKey;
 
@@ -268,6 +271,7 @@ pub const LLMClient = struct {
         return try self.extractResponseText(response_body.items);
     }
 
+    // TODO: Add unit tests for buildRequestBody()
     fn buildRequestBody(self: *LLMClient, body: *std.ArrayList(u8), prompt: []const u8) !void {
         const writer = body.writer();
 
@@ -291,6 +295,7 @@ pub const LLMClient = struct {
         }
     }
 
+    // TODO: Add unit tests for extractResponseText()
     fn extractResponseText(self: *LLMClient, response_body: []const u8) ![]const u8 {
         // Parse JSON response
         const response_json = try std.json.parseFromSlice(
@@ -354,6 +359,7 @@ pub const LLMClient = struct {
         }
     }
 
+    // TODO: Add unit tests for parseResponse()
     fn parseResponse(self: *LLMClient, response: []const u8) ![]Relationship {
         // Parse JSON response from LLM API
         const parsed = std.json.parseFromSlice(
