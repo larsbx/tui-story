@@ -132,7 +132,7 @@ pub fn build(b: *std.Build) void {
     const run_arch_tests = b.addRunArtifact(arch_tests);
     test_step.dependOn(&run_arch_tests.step);
 
-    // Integration tests
+    // Integration tests - workflow
     const integration_tests = b.addTest(.{
         .root_source_file = b.path("tests/integration/workflow_test.zig"),
         .target = target,
@@ -144,4 +144,16 @@ pub fn build(b: *std.Build) void {
     integration_tests.root_module.addImport("validation", validation_module);
     const run_integration_tests = b.addRunArtifact(integration_tests);
     test_step.dependOn(&run_integration_tests.step);
+
+    // Integration tests - UI state
+    const ui_state_integration_tests = b.addTest(.{
+        .root_source_file = b.path("tests/integration/ui_state_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    ui_state_integration_tests.root_module.addImport("graph", graph_module);
+    ui_state_integration_tests.root_module.addImport("llm", llm_module);
+    ui_state_integration_tests.root_module.addImport("ui", ui_module);
+    const run_ui_state_integration_tests = b.addRunArtifact(ui_state_integration_tests);
+    test_step.dependOn(&run_ui_state_integration_tests.step);
 }

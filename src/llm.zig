@@ -159,7 +159,7 @@ pub const LLMClient = struct {
         return prompt.toOwnedSlice();
     }
 
-    // TODO: Add unit tests for callAPI()
+    // NOTE: Integration test candidate - requires HTTP mocking or real API calls
     fn callAPI(self: *LLMClient, prompt: []const u8) ![]const u8 {
         var retries: u8 = 0;
         var backoff_ms = self.config.initial_backoff_ms;
@@ -188,7 +188,7 @@ pub const LLMClient = struct {
         return error.MaxRetriesExceeded;
     }
 
-    // TODO: Add unit tests for makeAPIRequest()
+    // NOTE: Integration test candidate - requires HTTP mocking or real API calls
     fn makeAPIRequest(self: *LLMClient, prompt: []const u8) ![]const u8 {
         const api_key = self.api_key orelse return error.MissingAPIKey;
 
