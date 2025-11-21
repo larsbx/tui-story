@@ -23,7 +23,6 @@ pub const UIState = struct {
     allocator: std.mem.Allocator,
     analysis: analysis_service.AnalysisService,
 
-    // TODO: Add unit tests for UIState.init()
     pub fn init() UIState {
         // We'll set the allocator later
         return .{
