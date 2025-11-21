@@ -12,6 +12,10 @@ pub const UIMode = enum {
     analyzing,
     viewing_graph,
     help,
+    // TODO(UX-CRITICAL): Add confirm_reset mode for reset confirmation dialog
+    // See: docs/UX_REVIEW.md - Principle #7 (Forgiveness & Reversibility)
+    // Effort: 2 hours | Priority: CRITICAL
+    // Implementation: Add confirm_reset mode, require explicit 'y' confirmation before reset
 };
 
 pub const UIState = struct {
@@ -19,9 +23,17 @@ pub const UIState = struct {
     ideas: std.ArrayList([]const u8),
     current_input: std.ArrayList(u8),
     selected_edge: ?usize,
+    // TODO(UX-HIGH): Add selected_vertex: ?usize for vertex-focused navigation
+    // See: docs/UX_REVIEW.md - Principle #14 (Navigation & Findability)
+    // Effort: 6 hours | Priority: HIGH
+    // Implementation: Allow direct vertex selection, highlight connected edges
     error_message: ?[]const u8,
     allocator: std.mem.Allocator,
     analysis: analysis_service.AnalysisService,
+    // TODO(UX-HIGH): Add undo_stack for operation reversibility
+    // See: docs/UX_REVIEW.md - Principle #7 (Forgiveness & Reversibility)
+    // Effort: 12 hours | Priority: HIGH
+    // Implementation: Create src/undo_stack.zig, store graph states, add Ctrl+Z handler
 
     // TODO: Add unit tests for UIState.init()
     pub fn init() UIState {
@@ -58,6 +70,11 @@ pub const UIState = struct {
                 } else if (key.matches('v', .{}) and g.vertices.items.len > 0) {
                     self.mode = .viewing_graph;
                 } else if (key.matches('r', .{})) {
+                    // TODO(UX-CRITICAL): Add confirmation dialog before reset to prevent data loss
+                    // See: docs/UX_REVIEW.md - Principle #7 (Forgiveness & Reversibility)
+                    // Current: Single keypress immediately deletes all data
+                    // Needed: self.mode = .confirm_reset; then wait for 'y' confirmation
+                    // Effort: 2 hours | Priority: CRITICAL
                     try self.reset(g);
                 }
             },
@@ -103,9 +120,27 @@ pub const UIState = struct {
                 }
             },
             .analyzing => {
+                // TODO(UX-CRITICAL): Allow cancellation with Escape key
+                // See: docs/UX_REVIEW.md - Principle #6 (Immediate Feedback)
+                // Current: User cannot abort long-running LLM calls
+                // Needed: if (key.matches(vaxis.Key.escape, .{})) { try self.cancelAnalysis(); }
+                // Effort: 4 hours | Priority: CRITICAL
+                // Requires: Thread interruption mechanism in analysis_service.zig
                 // Wait for analysis to complete
             },
             .viewing_graph => {
+                // TODO(UX-HIGH): Add vertex-focused navigation in addition to edge selection
+                // See: docs/UX_REVIEW.md - Principle #14 (Navigation & Findability)
+                // Current: Can only navigate edges, not vertices directly
+                // Needed: Add 'v' key to toggle vertex mode, left/right for vertex selection
+                // Effort: 6 hours | Priority: HIGH
+                // TODO(UX-MEDIUM): Add search functionality with '/' key
+                // See: docs/UX_REVIEW.md - Principle #14 (Navigation & Findability)
+                // Needed: Create search mode, filter vertices/edges by text
+                // Effort: 8 hours | Priority: MEDIUM
+                // TODO(UX-MEDIUM): Add '?' key for contextual help
+                // See: docs/UX_REVIEW.md - Principle #2 (Clarity Over Cleverness)
+                // Effort: 4 hours | Priority: MEDIUM
                 if (key.matches(vaxis.Key.escape, .{}) or key.matches('h', .{})) {
                     self.mode = .help;
                 } else if (key.matches(vaxis.Key.up, .{})) {
@@ -135,6 +170,16 @@ pub const UIState = struct {
 
         self.mode = .analyzing;
 
+        // TODO(UX-CRITICAL): Move LLM call to background thread to avoid blocking UI
+        // See: docs/UX_REVIEW.md - Principles #6 (Immediate Feedback) & #16 (Performance as Feature)
+        // Current: This blocks UI thread for 2-30+ seconds (violates 100ms requirement)
+        // Needed: Spawn background thread, update UI with progress, allow cancellation
+        // Effort: 8 hours | Priority: CRITICAL
+        // Implementation:
+        //   1. Create analysis_task: ?std.Thread in UIState
+        //   2. Spawn thread: self.analysis_task = try std.Thread.spawn(.{}, analyzeAsync, .{...});
+        //   3. Check completion in render loop
+        //   4. Update renderAnalyzing() with progress indicator
         // Analyze the new idea against all existing ideas
         try self.analysis.analyzeNewIdea(
             new_idea,
@@ -179,6 +224,12 @@ pub fn render(win: vaxis.Window, state: *UIState, g: *graph.SemanticGraph) !void
 
 // TODO: Add unit tests for renderHelp()
 fn renderHelp(win: vaxis.Window, state: *UIState, g: *graph.SemanticGraph) !void {
+    // TODO(UX-HIGH): Add privacy notice on first launch
+    // See: docs/UX_REVIEW.md - Principle #13 (Privacy & Ethical Design)
+    // Current: No warning that ideas are sent to external LLM APIs
+    // Needed: Display privacy notice explaining data flow to LLM provider
+    // Effort: 2 hours | Priority: HIGH
+    // Implementation: Add first_launch flag, show notice with "Press any key to continue"
     const title = "Semantic Relationship Graph Analyzer";
     _ = try win.printSegment(.{ .text = title, .style = .{ .bold = true, .fg = .{ .index = 6 } } }, .{
         .row_offset = 1,
@@ -284,6 +335,15 @@ fn renderInput(win: vaxis.Window, state: *UIState) !void {
 
 // TODO: Add unit tests for renderAnalyzing()
 fn renderAnalyzing(win: vaxis.Window) !void {
+    // TODO(UX-CRITICAL): Add animated spinner to show progress during LLM calls
+    // See: docs/UX_REVIEW.md - Principle #6 (Immediate Feedback)
+    // Current: Static message, no visual indication that work is happening
+    // Needed: Animated spinner (⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏), elapsed time counter
+    // Effort: 3 hours | Priority: CRITICAL
+    // Implementation:
+    //   const spinners = [_][]const u8{ "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
+    //   Pass frame counter to function, display spinner[frame % spinners.len]
+    //   Show elapsed time: "Analyzing... {d}s elapsed"
     const msg = "Analyzing semantic relationships...";
     _ = try win.printSegment(.{ .text = msg, .style = .{ .bold = true, .fg = .{ .index = 3 } } }, .{
         .row_offset = win.height / 2,
@@ -343,6 +403,14 @@ fn renderGraph(win: vaxis.Window, state: *UIState, g: *graph.SemanticGraph) !voi
         if (row < win.height and col < win.width) {
             const style: vaxis.Style = .{ .fg = .{ .index = 6 }, .bold = true };
 
+            // TODO(UX-QUICK-WIN): Add ellipsis to truncated text for clarity
+            // See: docs/UX_REVIEW.md - Principle #15 (Aesthetic Integrity)
+            // Current: Abrupt truncation without indicator
+            // Needed: "Some long text..." instead of "Some long text"
+            // Effort: 30 minutes | Priority: LOW (Quick Win)
+            // Implementation:
+            //   if (vertex.content.len > max_len)
+            //       try std.fmt.allocPrint(allocator, "{s}...", .{vertex.content[0..max_len-3]})
             // Truncate long content
             const max_len = 20;
             const display_text = if (vertex.content.len > max_len)

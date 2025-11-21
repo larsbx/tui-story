@@ -39,6 +39,15 @@ pub const RelationType = enum {
         return error.UnknownRelationType;
     }
 
+    // TODO(UX-MEDIUM): Add ASCII fallback mode for terminal compatibility
+    // See: docs/UX_REVIEW.md - Principle #5 (Accessibility as Foundation)
+    // Current: Unicode symbols may not render correctly on all terminals
+    // Needed: Add getSymbolAscii() or ascii_mode config option
+    // Effort: 3 hours | Priority: MEDIUM
+    // Implementation:
+    //   Add config: ascii_mode: bool (default false)
+    //   ASCII mappings: ⊥→"!=" →→"->" ⊆→"⊂" ⟿→"~>" ≈→"~" ≡→"=" ≠→"!=" ∈→"∈" ⇒→"=>"
+    //   Alternative: Create getSymbolAscii() returning simpler ASCII art
     pub fn getSymbol(self: RelationType) []const u8 {
         return switch (self) {
             .contradictory => "⊥",
