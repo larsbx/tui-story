@@ -35,7 +35,6 @@ pub const UIState = struct {
     // Effort: 12 hours | Priority: HIGH
     // Implementation: Create src/undo_stack.zig, store graph states, add Ctrl+Z handler
 
-    // TODO: Add unit tests for UIState.init()
     pub fn init() UIState {
         // We'll set the allocator later
         return .{

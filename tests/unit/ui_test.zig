@@ -22,7 +22,36 @@ test "UIMode enum has all expected modes" {
 }
 
 // ============================================================================
-// UIState Initialization Tests
+// UIState.init() Tests
+// ============================================================================
+
+test "UIState.init initializes with help mode" {
+    const state = ui.UIState.init();
+    try testing.expect(state.mode == .help);
+}
+
+test "UIState.init sets selected_edge to null" {
+    const state = ui.UIState.init();
+    try testing.expect(state.selected_edge == null);
+}
+
+test "UIState.init sets error_message to null" {
+    const state = ui.UIState.init();
+    try testing.expect(state.error_message == null);
+}
+
+test "UIState.init returns struct with correct field values" {
+    const state = ui.UIState.init();
+    // All non-undefined fields should be properly initialized
+    try testing.expect(state.mode == .help);
+    try testing.expect(state.selected_edge == null);
+    try testing.expect(state.error_message == null);
+    // Note: ideas, current_input, allocator, and analysis are undefined
+    // and meant to be set later with initWithAllocator or manually
+}
+
+// ============================================================================
+// UIState.initWithAllocator() Tests
 // ============================================================================
 
 test "UIState.initWithAllocator initializes with help mode" {
