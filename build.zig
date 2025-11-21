@@ -94,6 +94,18 @@ pub fn build(b: *std.Build) void {
     const run_validation_tests = b.addRunArtifact(validation_tests);
     test_step.dependOn(&run_validation_tests.step);
 
+    // Analysis service module tests
+    const analysis_service_tests = b.addTest(.{
+        .root_source_file = b.path("tests/unit/analysis_service_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    analysis_service_tests.root_module.addImport("analysis_service", analysis_service_module);
+    analysis_service_tests.root_module.addImport("graph", graph_module);
+    analysis_service_tests.root_module.addImport("llm", llm_module);
+    const run_analysis_service_tests = b.addRunArtifact(analysis_service_tests);
+    test_step.dependOn(&run_analysis_service_tests.step);
+
     // UI module tests
     const ui_tests = b.addTest(.{
         .root_source_file = b.path("tests/unit/ui_test.zig"),
