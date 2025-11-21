@@ -14,6 +14,7 @@ A terminal user interface (TUI) application built with Zig and libvaxis that ana
 
 ## Documentation
 
+- **[MCP Server Mode](./docs/MCP_SERVER.md)** - Headless Model Context Protocol server documentation
 - **[Changelog](./CHANGELOG.md)** - Version history and release notes
 - **[Examples](./EXAMPLES.md)** - Usage examples across different domains
 - **[Architecture](./docs/architecture/)** - Design decisions and diagrams
@@ -30,12 +31,14 @@ A terminal user interface (TUI) application built with Zig and libvaxis that ana
 
 ## Features
 
+- **MCP Server Mode**: Run as a headless Model Context Protocol server for integration with Claude and other LLM applications
 - **Incremental Concept Entry**: Enter concepts one at a time, each automatically compared to all existing concepts
 - **Dense Semantic Network**: Each new concept creates relationships with all previous concepts
 - **LLM-Powered Analysis**: Uses large language models to identify semantic relationships
 - **Graph Visualization**: Displays relationships as vertices (concepts) and edges (relationships)
 - **Multiple Relationships**: Nodes can have multiple different relationship types between them
 - **Intelligent Deduplication**: Prevents duplicate relationships and updates based on certainty
+- **Multi-Agent Support**: Multiple agents can collaborate on the same semantic graph
 - **9 Relationship Types**:
   - **CONTRADICTORY** (⊥): Propositions that cannot both be true
   - **IMPLICATIVE** (→): Propositions where one logically implies another
@@ -174,10 +177,17 @@ test "your test description" {
 
 ## Usage
 
-### Run the application:
+### Run the TUI application:
 ```bash
 zig build run
 ```
+
+### Run as MCP server (headless mode):
+```bash
+./zig-out/bin/semantic-graph-tui --mcp
+```
+
+For complete MCP server documentation, see **[MCP Server Mode](./docs/MCP_SERVER.md)**.
 
 ### LLM Provider Configuration
 
@@ -303,6 +313,7 @@ tui-story/
     ├── llm.zig                  # LLM API client (with retry/timeout)
     ├── ui.zig                   # User interface rendering
     ├── analysis_service.zig     # Business logic orchestration
+    ├── mcp_server.zig           # MCP server (JSON-RPC 2.0 over stdio)
     └── validation.zig           # Input validation layer
 ```
 
