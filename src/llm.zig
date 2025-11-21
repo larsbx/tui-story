@@ -270,7 +270,6 @@ pub const LLMClient = struct {
         return try self.extractResponseText(response_body.items);
     }
 
-    // TODO: Add unit tests for buildRequestBody()
     fn buildRequestBody(self: *LLMClient, body: *std.ArrayList(u8), prompt: []const u8) !void {
         const writer = body.writer();
 
@@ -547,4 +546,107 @@ test "APIProvider.fromString does not trim whitespace" {
     try std.testing.expectEqual(APIProvider.custom, APIProvider.fromString(" anthropic"));
     try std.testing.expectEqual(APIProvider.custom, APIProvider.fromString("anthropic "));
     try std.testing.expectEqual(APIProvider.custom, APIProvider.fromString(" openai "));
+}
+
+test "buildRequestBody generates valid Anthropic format" {
+    const allocator = std.testing.allocator;
+
+    var client = LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .anthropic,
+            .model = "claude-3",
+            .api_endpoint = "https://api.anthropic.com/v1/messages",
+            .auth_header = "x-api-key",
+            .auth_prefix = "",
+        },
+    };
+    defer client.http_client.deinit();
+
+    var body = std.ArrayList(u8).init(allocator);
+    defer body.deinit();
+
+    try client.buildRequestBody(&body, "Hello");
+
+    // Parse the generated JSON to verify it's valid
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, body.items, .{});
+    defer parsed.deinit();
+
+    const root = parsed.value.object;
+    try std.testing.expectEqualStrings("claude-3", root.get("model").?.string);
+    try std.testing.expectEqual(@as(i64, 4096), root.get("max_tokens").?.integer);
+
+    const messages = root.get("messages").?.array.items;
+    try std.testing.expectEqual(@as(usize, 1), messages.len);
+    try std.testing.expectEqualStrings("user", messages[0].object.get("role").?.string);
+    try std.testing.expectEqualStrings("Hello", messages[0].object.get("content").?.string);
+}
+
+test "buildRequestBody generates valid OpenAI format" {
+    const allocator = std.testing.allocator;
+
+    var client = LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .openai,
+            .model = "gpt-4",
+            .api_endpoint = "https://api.openai.com/v1/chat/completions",
+            .auth_header = "Authorization",
+            .auth_prefix = "Bearer ",
+        },
+    };
+    defer client.http_client.deinit();
+
+    var body = std.ArrayList(u8).init(allocator);
+    defer body.deinit();
+
+    try client.buildRequestBody(&body, "Test prompt");
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, body.items, .{});
+    defer parsed.deinit();
+
+    const root = parsed.value.object;
+    try std.testing.expectEqualStrings("gpt-4", root.get("model").?.string);
+    // OpenAI format should NOT have max_tokens by default
+    try std.testing.expect(root.get("max_tokens") == null);
+
+    const messages = root.get("messages").?.array.items;
+    try std.testing.expectEqualStrings("Test prompt", messages[0].object.get("content").?.string);
+}
+
+test "buildRequestBody escapes special characters in prompt" {
+    const allocator = std.testing.allocator;
+
+    var client = LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .anthropic,
+            .model = "claude-3",
+            .api_endpoint = "https://api.anthropic.com/v1/messages",
+            .auth_header = "x-api-key",
+            .auth_prefix = "",
+        },
+    };
+    defer client.http_client.deinit();
+
+    var body = std.ArrayList(u8).init(allocator);
+    defer body.deinit();
+
+    // Prompt with special chars that need JSON escaping
+    try client.buildRequestBody(&body, "Say \"hello\"\nNew line");
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, body.items, .{});
+    defer parsed.deinit();
+
+    const content = parsed.value.object.get("messages").?.array.items[0].object.get("content").?.string;
+    try std.testing.expectEqualStrings("Say \"hello\"\nNew line", content);
 }
