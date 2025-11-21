@@ -3,6 +3,10 @@ const vaxis = @import("vaxis");
 const graph = @import("graph.zig");
 const llm = @import("llm.zig");
 const ui = @import("ui.zig");
+const mcp_server = @import("mcp_server.zig");
+const mcp_server_concurrent = @import("mcp_server_concurrent.zig");
+const thread_safe_graph = @import("thread_safe_graph.zig");
+const analysis_service = @import("analysis_service.zig");
 
 const log = std.log.scoped(.semantic_graph);
 
@@ -126,8 +130,93 @@ pub fn main() !void {
     }
     const allocator = gpa.allocator();
 
-    log.info("Starting Semantic Relationship Graph TUI", .{});
+    // Parse command line arguments
+    var args = try std.process.argsWithAllocator(allocator);
+    defer args.deinit();
 
+    // Skip program name
+    _ = args.skip();
+
+    var mcp_mode = false;
+    var http_mode = false;
+    var http_port: u16 = 3000;
+
+    while (args.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--mcp") or std.mem.eql(u8, arg, "-m")) {
+            mcp_mode = true;
+        } else if (std.mem.eql(u8, arg, "--http")) {
+            http_mode = true;
+            // Check if next arg is a port number
+            if (args.next()) |port_str| {
+                http_port = std.fmt.parseInt(u16, port_str, 10) catch {
+                    log.err("Invalid port number: {s}", .{port_str});
+                    return error.InvalidPort;
+                };
+            }
+        } else if (std.mem.eql(u8, arg, "--help") or std.mem.eql(u8, arg, "-h")) {
+            const stdout = std.io.getStdOut().writer();
+            try stdout.print(
+                \\Semantic Relationship Graph TUI
+                \\
+                \\Usage: semantic-graph-tui [OPTIONS]
+                \\
+                \\Options:
+                \\  --mcp, -m          Run in headless MCP (stdio) server mode (single client)
+                \\  --http [PORT]      Run in HTTP MCP server mode (multiple concurrent clients)
+                \\                     Default port: 3000
+                \\  --help, -h         Show this help message
+                \\
+                \\Environment Variables:
+                \\  LLM_PROVIDER       Provider: anthropic, openai, custom (default: anthropic)
+                \\  LLM_MODEL          Model name (default: claude-3-5-sonnet-20241022)
+                \\  LLM_API_ENDPOINT   Custom API endpoint (for custom provider)
+                \\  ANTHROPIC_API_KEY  Anthropic API key
+                \\  OPENAI_API_KEY     OpenAI API key
+                \\
+                \\MCP Server Modes:
+                \\
+                \\  1. Stdio mode (--mcp):
+                \\     Single-client mode using stdin/stdout for JSON-RPC 2.0 communication.
+                \\     Ideal for Claude Desktop and single-agent integrations.
+                \\
+                \\  2. HTTP mode (--http [PORT]):
+                \\     Multi-client concurrent mode using HTTP transport.
+                \\     Supports multiple AI models accessing the graph simultaneously.
+                \\     Thread-safe with automatic synchronization.
+                \\     Default: http://127.0.0.1:3000
+                \\
+                \\  Available MCP tools:
+                \\    - add_idea: Add a concept to the graph
+                \\    - analyze_idea: Analyze relationships with existing ideas
+                \\    - get_graph: Retrieve the complete graph state
+                \\    - list_ideas: List all concepts
+                \\    - reset_graph: Clear all data
+                \\
+                \\  Available MCP resources:
+                \\    - graph://state: Complete graph JSON
+                \\    - graph://vertices: List of vertices
+                \\    - graph://edges: List of edges
+                \\
+            , .{});
+            return;
+        }
+    }
+
+    if (http_mode) {
+        log.info("Starting in HTTP MCP server mode on port {}", .{http_port});
+        try runHTTPMCPServer(allocator, http_port);
+    } else if (mcp_mode) {
+        log.info("Starting in stdio MCP server mode", .{});
+        try runMCPServer(allocator);
+    } else {
+        log.info("Starting Semantic Relationship Graph TUI", .{});
+        try runTUI(allocator);
+    }
+
+    log.info("Application exited successfully", .{});
+}
+
+fn runTUI(allocator: std.mem.Allocator) !void {
     var app = try App.init(allocator) catch |err| {
         log.err("Failed to initialize application: {}", .{err});
         return err;
@@ -138,6 +227,42 @@ pub fn main() !void {
         log.err("Application error: {}", .{err});
         return err;
     };
+}
 
-    log.info("Application exited successfully", .{});
+fn runMCPServer(allocator: std.mem.Allocator) !void {
+    var graph_data = graph.SemanticGraph.init(allocator);
+    defer graph_data.deinit();
+
+    var llm_client = llm.LLMClient.init(allocator);
+    defer llm_client.deinit();
+
+    var analysis_svc = analysis_service.AnalysisService.init(allocator, &graph_data, &llm_client);
+
+    var server = mcp_server.MCPServer.init(allocator, &graph_data, &llm_client, &analysis_svc);
+
+    try server.run() catch |err| {
+        log.err("MCP Server error: {}", .{err});
+        return err;
+    };
+}
+
+fn runHTTPMCPServer(allocator: std.mem.Allocator, port: u16) !void {
+    var safe_graph = thread_safe_graph.ThreadSafeGraph.init(allocator);
+    defer safe_graph.deinit();
+
+    var llm_client = llm.LLMClient.init(allocator);
+    defer llm_client.deinit();
+
+    var server = mcp_server_concurrent.ConcurrentMCPServer.init(
+        allocator,
+        &safe_graph,
+        &llm_client,
+        port,
+    );
+    defer server.deinit();
+
+    try server.runHTTP() catch |err| {
+        log.err("HTTP MCP Server error: {}", .{err});
+        return err;
+    };
 }

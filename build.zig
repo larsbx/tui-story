@@ -53,6 +53,28 @@ pub fn build(b: *std.Build) void {
     analysis_service_module.addImport("graph", graph_module);
     analysis_service_module.addImport("llm", llm_module);
 
+    const thread_safe_graph_module = b.createModule(.{
+        .root_source_file = b.path("src/thread_safe_graph.zig"),
+    });
+    thread_safe_graph_module.addImport("graph", graph_module);
+
+    const mcp_server_module = b.createModule(.{
+        .root_source_file = b.path("src/mcp_server.zig"),
+    });
+    mcp_server_module.addImport("graph", graph_module);
+    mcp_server_module.addImport("llm", llm_module);
+    mcp_server_module.addImport("analysis_service", analysis_service_module);
+    mcp_server_module.addImport("validation", validation_module);
+
+    const mcp_server_concurrent_module = b.createModule(.{
+        .root_source_file = b.path("src/mcp_server_concurrent.zig"),
+    });
+    mcp_server_concurrent_module.addImport("graph", graph_module);
+    mcp_server_concurrent_module.addImport("thread_safe_graph", thread_safe_graph_module);
+    mcp_server_concurrent_module.addImport("llm", llm_module);
+    mcp_server_concurrent_module.addImport("analysis_service", analysis_service_module);
+    mcp_server_concurrent_module.addImport("validation", validation_module);
+
     const ui_module = b.createModule(.{
         .root_source_file = b.path("src/ui.zig"),
     });
@@ -122,4 +144,59 @@ pub fn build(b: *std.Build) void {
     integration_tests.root_module.addImport("validation", validation_module);
     const run_integration_tests = b.addRunArtifact(integration_tests);
     test_step.dependOn(&run_integration_tests.step);
+
+    // MCP server tests
+    const mcp_tests = b.addTest(.{
+        .root_source_file = b.path("tests/unit/mcp_server_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    mcp_tests.root_module.addImport("mcp_server", mcp_server_module);
+    mcp_tests.root_module.addImport("graph", graph_module);
+    mcp_tests.root_module.addImport("llm", llm_module);
+    mcp_tests.root_module.addImport("analysis_service", analysis_service_module);
+    mcp_tests.root_module.addImport("validation", validation_module);
+    const run_mcp_tests = b.addRunArtifact(mcp_tests);
+    test_step.dependOn(&run_mcp_tests.step);
+
+    // MCP protocol integration tests
+    const mcp_protocol_tests = b.addTest(.{
+        .root_source_file = b.path("tests/integration/mcp_protocol_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    mcp_protocol_tests.root_module.addImport("mcp_server", mcp_server_module);
+    mcp_protocol_tests.root_module.addImport("graph", graph_module);
+    mcp_protocol_tests.root_module.addImport("llm", llm_module);
+    mcp_protocol_tests.root_module.addImport("analysis_service", analysis_service_module);
+    mcp_protocol_tests.root_module.addImport("validation", validation_module);
+    const run_mcp_protocol_tests = b.addRunArtifact(mcp_protocol_tests);
+    test_step.dependOn(&run_mcp_protocol_tests.step);
+
+    // Thread-safe graph tests
+    const thread_safe_graph_tests = b.addTest(.{
+        .root_source_file = b.path("tests/unit/thread_safe_graph_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    thread_safe_graph_tests.root_module.addImport("thread_safe_graph", thread_safe_graph_module);
+    thread_safe_graph_tests.root_module.addImport("graph", graph_module);
+    thread_safe_graph_tests.root_module.addImport("validation", validation_module);
+    const run_thread_safe_graph_tests = b.addRunArtifact(thread_safe_graph_tests);
+    test_step.dependOn(&run_thread_safe_graph_tests.step);
+
+    // Concurrent MCP server tests
+    const mcp_concurrent_tests = b.addTest(.{
+        .root_source_file = b.path("tests/unit/mcp_server_concurrent_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    mcp_concurrent_tests.root_module.addImport("mcp_server_concurrent", mcp_server_concurrent_module);
+    mcp_concurrent_tests.root_module.addImport("thread_safe_graph", thread_safe_graph_module);
+    mcp_concurrent_tests.root_module.addImport("graph", graph_module);
+    mcp_concurrent_tests.root_module.addImport("llm", llm_module);
+    mcp_concurrent_tests.root_module.addImport("analysis_service", analysis_service_module);
+    mcp_concurrent_tests.root_module.addImport("validation", validation_module);
+    const run_mcp_concurrent_tests = b.addRunArtifact(mcp_concurrent_tests);
+    test_step.dependOn(&run_mcp_concurrent_tests.step);
 }
