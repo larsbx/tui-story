@@ -1,7 +1,6 @@
 .{
-    .name = .@"semantic-graph-tui",
+    .name = .semantic_graph_tui,
     .version = "0.1.0",
-    .fingerprint = "",
     .dependencies = .{
         .libvaxis = .{
             .url = "https://github.com/rockorager/libvaxis/archive/refs/tags/v0.8.1.tar.gz",
