@@ -108,6 +108,7 @@ pub const AnalysisService = struct {
     }
 
     /// Analyzes relationships between a new idea and all existing ideas
+    // TODO: Add unit tests for AnalysisService.analyzeNewIdea()
     pub fn analyzeNewIdea(
         self: *AnalysisService,
         new_idea: []const u8,

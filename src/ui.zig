@@ -23,6 +23,7 @@ pub const UIState = struct {
     allocator: std.mem.Allocator,
     analysis: analysis_service.AnalysisService,
 
+    // TODO: Add unit tests for UIState.init()
     pub fn init() UIState {
         // We'll set the allocator later
         return .{
@@ -47,6 +48,7 @@ pub const UIState = struct {
         };
     }
 
+    // TODO: Add unit tests for UIState.handleKey()
     pub fn handleKey(self: *UIState, key: vaxis.Key, g: *graph.SemanticGraph, llm_client: *llm.LLMClient) !void {
         switch (self.mode) {
             .help => {
@@ -123,6 +125,7 @@ pub const UIState = struct {
         }
     }
 
+    // TODO: Add unit tests for UIState.analyzeNewIdea()
     fn analyzeNewIdea(self: *UIState, new_idea: []const u8, g: *graph.SemanticGraph, llm_client: *llm.LLMClient) !void {
         // If this is the first idea, just add it to the graph
         if (self.ideas.items.len == 0) {
@@ -143,6 +146,7 @@ pub const UIState = struct {
         self.mode = .viewing_graph;
     }
 
+    // TODO: Add unit tests for UIState.reset()
     fn reset(self: *UIState, g: *graph.SemanticGraph) !void {
         log.info("Resetting all data", .{});
 
@@ -163,6 +167,7 @@ pub const UIState = struct {
     }
 };
 
+// TODO: Add unit tests for render()
 pub fn render(win: vaxis.Window, state: *UIState, g: *graph.SemanticGraph) !void {
     switch (state.mode) {
         .help => try renderHelp(win, state, g),
@@ -172,6 +177,7 @@ pub fn render(win: vaxis.Window, state: *UIState, g: *graph.SemanticGraph) !void
     }
 }
 
+// TODO: Add unit tests for renderHelp()
 fn renderHelp(win: vaxis.Window, state: *UIState, g: *graph.SemanticGraph) !void {
     const title = "Semantic Relationship Graph Analyzer";
     _ = try win.printSegment(.{ .text = title, .style = .{ .bold = true, .fg = .{ .index = 6 } } }, .{
@@ -231,6 +237,7 @@ fn renderHelp(win: vaxis.Window, state: *UIState, g: *graph.SemanticGraph) !void
     }
 }
 
+// TODO: Add unit tests for renderInput()
 fn renderInput(win: vaxis.Window, state: *UIState) !void {
     const title_text = if (state.ideas.items.len == 0)
         "Enter your first idea"
@@ -275,6 +282,7 @@ fn renderInput(win: vaxis.Window, state: *UIState) !void {
     });
 }
 
+// TODO: Add unit tests for renderAnalyzing()
 fn renderAnalyzing(win: vaxis.Window) !void {
     const msg = "Analyzing semantic relationships...";
     _ = try win.printSegment(.{ .text = msg, .style = .{ .bold = true, .fg = .{ .index = 3 } } }, .{
@@ -283,6 +291,7 @@ fn renderAnalyzing(win: vaxis.Window) !void {
     });
 }
 
+// TODO: Add unit tests for renderGraph()
 fn renderGraph(win: vaxis.Window, state: *UIState, g: *graph.SemanticGraph) !void {
     const title = "Semantic Relationship Graph";
     _ = try win.printSegment(.{ .text = title, .style = .{ .bold = true, .fg = .{ .index = 6 } } }, .{
