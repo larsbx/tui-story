@@ -8,7 +8,9 @@ The [Model Context Protocol](https://modelcontextprotocol.io) is an open standar
 
 ## Running in MCP Mode
 
-Start the server in headless MCP mode:
+### Stdio Mode (Single Client)
+
+Start the server in headless stdio MCP mode:
 
 ```bash
 ./semantic-graph-tui --mcp
@@ -24,6 +26,39 @@ The server will:
 - Read JSON-RPC 2.0 messages from **stdin**
 - Write responses to **stdout**
 - Log diagnostic messages to **stderr**
+- Support **one client at a time**
+
+### HTTP Mode (Multiple Concurrent Clients) 🆕
+
+Start the server in HTTP mode for **concurrent multi-client access**:
+
+```bash
+./semantic-graph-tui --http
+```
+
+Or specify a custom port:
+
+```bash
+./semantic-graph-tui --http 8080
+```
+
+The HTTP server will:
+- Listen on `http://127.0.0.1:3000` (default port)
+- Accept JSON-RPC 2.0 requests via HTTP POST
+- Support **multiple AI models accessing concurrently**
+- Provide **thread-safe** graph access with automatic synchronization
+- Log diagnostic messages to **stderr**
+
+**When to use HTTP mode:**
+- Multiple AI agents need to collaborate on the same semantic graph
+- You want multiple LLM applications to access the graph simultaneously
+- You need programmatic access from scripts or tools
+- You're building a multi-agent system
+
+**When to use stdio mode:**
+- Single Claude Desktop integration
+- One-on-one agent communication
+- Claude Code or similar single-agent tools
 
 ## MCP Tools
 
@@ -315,7 +350,9 @@ Health check endpoint.
 }
 ```
 
-## Integration with Claude Desktop
+## Integration Examples
+
+### Claude Desktop (Stdio Mode)
 
 To use this server with Claude Desktop, add it to your MCP configuration:
 
@@ -346,9 +383,93 @@ After adding this configuration and restarting Claude Desktop, you can ask Claud
 - "Show me the current semantic graph"
 - "List all ideas in the graph"
 
+### HTTP Mode: Multiple Clients
+
+Start the HTTP server:
+
+```bash
+./semantic-graph-tui --http 3000 &
+```
+
+Then multiple clients can connect:
+
+**Client 1 - curl:**
+```bash
+curl -X POST http://127.0.0.1:3000 \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"add_idea","arguments":{"content":"Distributed Systems"}}}'
+```
+
+**Client 2 - Python:**
+```python
+import requests
+
+response = requests.post('http://127.0.0.1:3000', json={
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+        "name": "add_idea",
+        "arguments": {"content": "Consensus Algorithms"}
+    }
+})
+
+print(response.json())
+```
+
+**Client 3 - JavaScript:**
+```javascript
+fetch('http://127.0.0.1:3000', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({
+    jsonrpc: '2.0',
+    id: 3,
+    method: 'tools/call',
+    params: {
+      name: 'list_ideas',
+      arguments: {}
+    }
+  })
+})
+.then(r => r.json())
+.then(data => console.log(data));
+```
+
+All three clients can work simultaneously on the same semantic graph!
+
 ## Multi-Agent Support
 
-The MCP server supports multiple concurrent agents working with the same graph. Multiple MCP clients can connect to the same graph instance, enabling collaborative knowledge building.
+### HTTP Mode: True Concurrent Access
+
+The HTTP MCP server supports **multiple concurrent agents** working with the same graph simultaneously:
+
+- **Thread-safe operations**: All graph operations are protected by mutex locks
+- **Concurrent requests**: Multiple AI models can send requests at the same time
+- **Shared state**: All agents see the same semantic graph in real-time
+- **Atomic operations**: Each request is processed atomically to maintain data consistency
+
+**Example: Multiple agents collaborating**
+
+Agent 1 (GPT-4):
+```bash
+curl -X POST http://127.0.0.1:3000 \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"add_idea","arguments":{"content":"Machine Learning"}}}'
+```
+
+Agent 2 (Claude):
+```bash
+curl -X POST http://127.0.0.1:3000 \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"add_idea","arguments":{"content":"Neural Networks"}}}'
+```
+
+Both agents can work simultaneously, and both will see each other's contributions to the graph.
+
+### Stdio Mode: Sequential Access
+
+The stdio MCP server supports single-client access. For multi-agent collaboration, use HTTP mode.
 
 ## Environment Variables
 
@@ -393,18 +514,41 @@ This includes:
 - Unit tests for JSON-RPC message handling
 - Integration tests for complete protocol flows
 - Multi-agent collaboration tests
+- Concurrent access tests (HTTP mode)
+- Thread-safe graph operation tests
 - Error handling tests
+
+**Test Coverage:**
+- 15 stdio MCP server tests
+- 4 MCP protocol integration tests
+- 14 thread-safe graph tests
+- 11 concurrent HTTP server tests
+- **Total: 44 MCP-related tests**
 
 ## Architecture
 
-The MCP server is implemented in `/src/mcp_server.zig` and reuses the existing:
+The MCP server has two implementations:
+
+### Stdio Mode (`src/mcp_server.zig`)
+- Single-client JSON-RPC 2.0 over stdin/stdout
+- Direct access to `SemanticGraph`
+- Synchronous request processing
+
+### HTTP Mode (`src/mcp_server_concurrent.zig`)
+- Multi-client JSON-RPC 2.0 over HTTP
+- Uses `ThreadSafeGraph` wrapper (`src/thread_safe_graph.zig`)
+- Concurrent request processing with thread spawning
+- Mutex-protected graph operations
+
+Both reuse the existing:
 
 - **Domain layer**: `graph.zig` - Semantic graph data structures
 - **Application layer**: `analysis_service.zig` - Business logic
 - **Infrastructure layer**: `llm.zig` - LLM API client
 - **Validation layer**: `validation.zig` - Input validation
+- **Thread-safety layer**: `thread_safe_graph.zig` - Synchronized graph access (HTTP mode only)
 
-This clean separation allows both TUI and MCP server modes to share the same core functionality.
+This clean separation allows TUI, stdio MCP, and HTTP MCP modes to share the same core functionality.
 
 ## Learn More
 

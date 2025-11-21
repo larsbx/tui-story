@@ -32,6 +32,8 @@ A terminal user interface (TUI) application built with Zig and libvaxis that ana
 ## Features
 
 - **MCP Server Mode**: Run as a headless Model Context Protocol server for integration with Claude and other LLM applications
+  - **Stdio mode**: Single-client MCP over stdin/stdout
+  - **HTTP mode**: Multi-client concurrent MCP with thread-safe graph access
 - **Incremental Concept Entry**: Enter concepts one at a time, each automatically compared to all existing concepts
 - **Dense Semantic Network**: Each new concept creates relationships with all previous concepts
 - **LLM-Powered Analysis**: Uses large language models to identify semantic relationships
@@ -183,8 +185,17 @@ zig build run
 ```
 
 ### Run as MCP server (headless mode):
+
+**Single client (stdio):**
 ```bash
 ./zig-out/bin/semantic-graph-tui --mcp
+```
+
+**Multiple concurrent clients (HTTP):**
+```bash
+./zig-out/bin/semantic-graph-tui --http
+# or specify custom port:
+./zig-out/bin/semantic-graph-tui --http 8080
 ```
 
 For complete MCP server documentation, see **[MCP Server Mode](./docs/MCP_SERVER.md)**.
@@ -313,7 +324,9 @@ tui-story/
     ├── llm.zig                  # LLM API client (with retry/timeout)
     ├── ui.zig                   # User interface rendering
     ├── analysis_service.zig     # Business logic orchestration
-    ├── mcp_server.zig           # MCP server (JSON-RPC 2.0 over stdio)
+    ├── mcp_server.zig           # MCP server (JSON-RPC 2.0 over stdio, single client)
+    ├── mcp_server_concurrent.zig # MCP server (HTTP, multi-client concurrent)
+    ├── thread_safe_graph.zig    # Thread-safe graph wrapper with mutex
     └── validation.zig           # Input validation layer
 ```
 
