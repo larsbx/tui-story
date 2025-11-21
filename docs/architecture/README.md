@@ -16,6 +16,7 @@ An ADR is a document that captures an important architectural decision made alon
 | [ADR-003](ADR-003-force-directed-graph-layout.md) | Force-Directed Graph Layout Algorithm | Accepted |
 | [ADR-004](ADR-004-input-validation-layer.md) | Input Validation Layer | Accepted |
 | [ADR-005](ADR-005-service-layer-extraction.md) | Extract Analysis Service from UI Layer | Accepted |
+| [ADR-006](ADR-006-graphiti-knowledge-graph-integration.md) | Graphiti Knowledge Graph Integration | Proposed |
 
 ## When to Write an ADR
 
