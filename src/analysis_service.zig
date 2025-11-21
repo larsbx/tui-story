@@ -5,6 +5,14 @@ const llm = @import("llm");
 const log = std.log.scoped(.analysis_service);
 
 /// Service responsible for orchestrating semantic relationship analysis
+// TODO(UX-CRITICAL): Add support for async/cancellable operations
+// See: docs/UX_REVIEW.md - Principles #6 & #16 (Immediate Feedback, Performance)
+// Current: All operations block UI thread for entire duration
+// Needed:
+//   1. Add cancellation_flag: *std.atomic.Atomic(bool) to track cancel requests
+//   2. Check flag periodically during analysis
+//   3. Support background thread execution
+// Effort: Part of 8-hour async implementation | Priority: CRITICAL
 pub const AnalysisService = struct {
     allocator: std.mem.Allocator,
 

@@ -1,6 +1,12 @@
 const std = @import("std");
 
 /// Input validation errors
+// TODO(UX-QUICK-WIN): Make error messages more actionable with specific details
+// See: docs/UX_REVIEW.md - Principle #12 (Error Prevention Over Error Handling)
+// Current: Generic error messages
+// Needed: Include actual length, characters over limit, etc.
+// Effort: 2 hours | Priority: LOW (Quick Win)
+// Example: Instead of "Input too long", show "Input is 1247 chars, max is 1000. Please shorten by 247 chars."
 pub const ValidationError = error{
     EmptyInput,
     InputTooLong,
