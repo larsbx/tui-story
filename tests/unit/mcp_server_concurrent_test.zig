@@ -374,3 +374,20 @@ test "ConcurrentMCPServer: error handling for invalid requests" {
         try testing.expect(std.mem.indexOf(u8, response, "-32601") != null);
     }
 }
+
+// TODO: Add test for malformed JSON in request body
+// Verify proper error response for invalid JSON
+
+// TODO: Add test for large payload (close to 10MB limit)
+// Verify memory limits are enforced
+
+// TODO: Add test for concurrent analyze_idea operations
+// This is the most complex operation - multiple threads analyzing different ideas
+// Verify all relationships are added correctly without corruption
+
+// TODO: Add HTTP integration test
+// Actually start HTTP server, make real HTTP requests, verify responses
+
+// TODO: Add multi-agent collaborative session integration test
+// Simulate realistic scenario with 3+ agents working simultaneously
+// Each agent adds ideas and analyzes, verify final graph is correct

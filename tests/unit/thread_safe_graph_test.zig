@@ -239,3 +239,18 @@ test "ThreadSafeGraph: complete graph JSON serialization" {
     try testing.expect(std.mem.indexOf(u8, json, "AI") != null);
     try testing.expect(std.mem.indexOf(u8, json, "hierarchical") != null);
 }
+
+// TODO: Add test for concurrent edge updates with same vertices
+// Multiple threads should be able to update the same edge, with highest certainty winning
+// This is critical for multi-agent scenarios where agents may discover same relationships
+
+// TODO: Add test for concurrent read-write operations
+// Readers (snapshots, JSON serialization) should get consistent views while writers modify graph
+// This ensures data consistency during concurrent access
+
+// TODO: Add stress test with 50+ concurrent threads
+// Verify stability and correctness under high load
+// Measure performance degradation
+
+// TODO: Add test for memory allocation failures
+// Verify proper error propagation and no memory leaks on error paths
