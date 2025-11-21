@@ -56,6 +56,7 @@ pub fn build(b: *std.Build) void {
     const ui_module = b.createModule(.{
         .root_source_file = b.path("src/ui.zig"),
     });
+    ui_module.addImport("vaxis", libvaxis.module("vaxis"));
     ui_module.addImport("graph", graph_module);
     ui_module.addImport("llm", llm_module);
     ui_module.addImport("validation", validation_module);
@@ -112,6 +113,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    ui_tests.root_module.addImport("vaxis", libvaxis.module("vaxis"));
     ui_tests.root_module.addImport("ui", ui_module);
     ui_tests.root_module.addImport("graph", graph_module);
     ui_tests.root_module.addImport("validation", validation_module);
@@ -151,6 +153,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    ui_state_integration_tests.root_module.addImport("vaxis", libvaxis.module("vaxis"));
     ui_state_integration_tests.root_module.addImport("graph", graph_module);
     ui_state_integration_tests.root_module.addImport("llm", llm_module);
     ui_state_integration_tests.root_module.addImport("ui", ui_module);
