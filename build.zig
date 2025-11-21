@@ -84,6 +84,16 @@ pub fn build(b: *std.Build) void {
     const run_llm_tests = b.addRunArtifact(llm_tests);
     test_step.dependOn(&run_llm_tests.step);
 
+    // Validation module tests
+    const validation_tests = b.addTest(.{
+        .root_source_file = b.path("tests/unit/validation_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    validation_tests.root_module.addImport("validation", validation_module);
+    const run_validation_tests = b.addRunArtifact(validation_tests);
+    test_step.dependOn(&run_validation_tests.step);
+
     // UI module tests
     const ui_tests = b.addTest(.{
         .root_source_file = b.path("tests/unit/ui_test.zig"),

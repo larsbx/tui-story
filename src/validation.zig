@@ -50,24 +50,3 @@ pub fn sanitizeInput(input: []const u8, allocator: std.mem.Allocator) ![]const u
     const trimmed = std.mem.trim(u8, input, &std.ascii.whitespace);
     return allocator.dupe(u8, trimmed);
 }
-
-// Unit tests
-test "validateVertexContent rejects empty content" {
-    const result = validateVertexContent("");
-    try std.testing.expectError(ValidationError.EmptyContent, result);
-}
-
-test "validateVertexContent accepts valid UTF-8" {
-    try validateVertexContent("hello");
-    try validateVertexContent("hello world");
-    try validateVertexContent("émojis: 🎉🚀");
-    try validateVertexContent("中文文本");
-    try validateVertexContent(" "); // whitespace is valid content
-}
-
-test "validateVertexContent rejects invalid UTF-8" {
-    // Invalid UTF-8 sequence: 0xFF is never valid in UTF-8
-    const invalid_utf8 = &[_]u8{ 0xFF, 0xFE };
-    const result = validateVertexContent(invalid_utf8);
-    try std.testing.expectError(ValidationError.InvalidUtf8, result);
-}

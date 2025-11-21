@@ -320,3 +320,351 @@ test "analyzeRelationships properly cleans up on success" {
 
     // Test passes if no memory leaks detected by GPA
 }
+
+// ============================================================================
+// APIProvider.fromString Tests
+// ============================================================================
+
+test "APIProvider.fromString returns anthropic for various cases" {
+    try testing.expectEqual(llm.APIProvider.anthropic, llm.APIProvider.fromString("anthropic"));
+    try testing.expectEqual(llm.APIProvider.anthropic, llm.APIProvider.fromString("ANTHROPIC"));
+    try testing.expectEqual(llm.APIProvider.anthropic, llm.APIProvider.fromString("Anthropic"));
+    try testing.expectEqual(llm.APIProvider.anthropic, llm.APIProvider.fromString("AnThRoPiC"));
+}
+
+test "APIProvider.fromString returns openai for various cases" {
+    try testing.expectEqual(llm.APIProvider.openai, llm.APIProvider.fromString("openai"));
+    try testing.expectEqual(llm.APIProvider.openai, llm.APIProvider.fromString("OPENAI"));
+    try testing.expectEqual(llm.APIProvider.openai, llm.APIProvider.fromString("OpenAI"));
+    try testing.expectEqual(llm.APIProvider.openai, llm.APIProvider.fromString("OpenAi"));
+}
+
+test "APIProvider.fromString returns custom for unknown providers" {
+    try testing.expectEqual(llm.APIProvider.custom, llm.APIProvider.fromString("custom"));
+    try testing.expectEqual(llm.APIProvider.custom, llm.APIProvider.fromString("ollama"));
+    try testing.expectEqual(llm.APIProvider.custom, llm.APIProvider.fromString("local"));
+    try testing.expectEqual(llm.APIProvider.custom, llm.APIProvider.fromString(""));
+    try testing.expectEqual(llm.APIProvider.custom, llm.APIProvider.fromString("unknown"));
+}
+
+test "APIProvider.fromString does not trim whitespace" {
+    try testing.expectEqual(llm.APIProvider.custom, llm.APIProvider.fromString(" anthropic"));
+    try testing.expectEqual(llm.APIProvider.custom, llm.APIProvider.fromString("anthropic "));
+    try testing.expectEqual(llm.APIProvider.custom, llm.APIProvider.fromString(" openai "));
+}
+
+// ============================================================================
+// buildRequestBody Tests
+// ============================================================================
+
+test "buildRequestBody generates valid Anthropic format" {
+    const allocator = testing.allocator;
+
+    var client = llm.LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .anthropic,
+            .model = "claude-3",
+            .api_endpoint = "https://api.anthropic.com/v1/messages",
+            .auth_header = "x-api-key",
+            .auth_prefix = "",
+        },
+    };
+    defer client.http_client.deinit();
+
+    var body = std.ArrayList(u8).init(allocator);
+    defer body.deinit();
+
+    try client.buildRequestBody(&body, "Hello");
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, body.items, .{});
+    defer parsed.deinit();
+
+    const root = parsed.value.object;
+    try testing.expectEqualStrings("claude-3", root.get("model").?.string);
+    try testing.expectEqual(@as(i64, 4096), root.get("max_tokens").?.integer);
+
+    const messages = root.get("messages").?.array.items;
+    try testing.expectEqual(@as(usize, 1), messages.len);
+    try testing.expectEqualStrings("user", messages[0].object.get("role").?.string);
+    try testing.expectEqualStrings("Hello", messages[0].object.get("content").?.string);
+}
+
+test "buildRequestBody generates valid OpenAI format" {
+    const allocator = testing.allocator;
+
+    var client = llm.LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .openai,
+            .model = "gpt-4",
+            .api_endpoint = "https://api.openai.com/v1/chat/completions",
+            .auth_header = "Authorization",
+            .auth_prefix = "Bearer ",
+        },
+    };
+    defer client.http_client.deinit();
+
+    var body = std.ArrayList(u8).init(allocator);
+    defer body.deinit();
+
+    try client.buildRequestBody(&body, "Test prompt");
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, body.items, .{});
+    defer parsed.deinit();
+
+    const root = parsed.value.object;
+    try testing.expectEqualStrings("gpt-4", root.get("model").?.string);
+    try testing.expect(root.get("max_tokens") == null);
+
+    const messages = root.get("messages").?.array.items;
+    try testing.expectEqualStrings("Test prompt", messages[0].object.get("content").?.string);
+}
+
+test "buildRequestBody escapes special characters in prompt" {
+    const allocator = testing.allocator;
+
+    var client = llm.LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .anthropic,
+            .model = "claude-3",
+            .api_endpoint = "https://api.anthropic.com/v1/messages",
+            .auth_header = "x-api-key",
+            .auth_prefix = "",
+        },
+    };
+    defer client.http_client.deinit();
+
+    var body = std.ArrayList(u8).init(allocator);
+    defer body.deinit();
+
+    try client.buildRequestBody(&body, "Say \"hello\"\nNew line");
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, body.items, .{});
+    defer parsed.deinit();
+
+    const content = parsed.value.object.get("messages").?.array.items[0].object.get("content").?.string;
+    try testing.expectEqualStrings("Say \"hello\"\nNew line", content);
+}
+
+// ============================================================================
+// extractResponseText Tests
+// ============================================================================
+
+test "extractResponseText parses Anthropic format" {
+    const allocator = testing.allocator;
+
+    var client = llm.LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .anthropic,
+            .model = "claude-3",
+            .api_endpoint = "https://api.anthropic.com/v1/messages",
+            .auth_header = "x-api-key",
+            .auth_prefix = "",
+        },
+    };
+    defer client.http_client.deinit();
+
+    const anthropic_response =
+        \\{"content": [{"type": "text", "text": "Hello from Claude"}], "model": "claude-3"}
+    ;
+
+    const text = try client.extractResponseText(anthropic_response);
+    defer allocator.free(text);
+
+    try testing.expectEqualStrings("Hello from Claude", text);
+}
+
+test "extractResponseText parses OpenAI format" {
+    const allocator = testing.allocator;
+
+    var client = llm.LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .openai,
+            .model = "gpt-4",
+            .api_endpoint = "https://api.openai.com/v1/chat/completions",
+            .auth_header = "Authorization",
+            .auth_prefix = "Bearer ",
+        },
+    };
+    defer client.http_client.deinit();
+
+    const openai_response =
+        \\{"choices": [{"message": {"role": "assistant", "content": "Hello from GPT"}}]}
+    ;
+
+    const text = try client.extractResponseText(openai_response);
+    defer allocator.free(text);
+
+    try testing.expectEqualStrings("Hello from GPT", text);
+}
+
+test "extractResponseText returns error for missing content field (Anthropic)" {
+    const allocator = testing.allocator;
+
+    var client = llm.LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .anthropic,
+            .model = "claude-3",
+            .api_endpoint = "https://api.anthropic.com/v1/messages",
+            .auth_header = "x-api-key",
+            .auth_prefix = "",
+        },
+    };
+    defer client.http_client.deinit();
+
+    const invalid_response = \\{"model": "claude-3"}
+    ;
+
+    const result = client.extractResponseText(invalid_response);
+    try testing.expectError(error.MissingContentField, result);
+}
+
+test "extractResponseText returns error for missing choices field (OpenAI)" {
+    const allocator = testing.allocator;
+
+    var client = llm.LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .openai,
+            .model = "gpt-4",
+            .api_endpoint = "https://api.openai.com/v1/chat/completions",
+            .auth_header = "Authorization",
+            .auth_prefix = "Bearer ",
+        },
+    };
+    defer client.http_client.deinit();
+
+    const invalid_response = \\{"model": "gpt-4"}
+    ;
+
+    const result = client.extractResponseText(invalid_response);
+    try testing.expectError(error.MissingChoicesField, result);
+}
+
+// ============================================================================
+// parseResponse Tests
+// ============================================================================
+
+test "parseResponse parses valid relationship array" {
+    const allocator = testing.allocator;
+
+    var client = llm.LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .anthropic,
+            .model = "claude-3",
+            .api_endpoint = "https://api.anthropic.com/v1/messages",
+            .auth_header = "x-api-key",
+            .auth_prefix = "",
+        },
+    };
+    defer client.http_client.deinit();
+
+    const response =
+        \\[{"from": "idea1", "to": "idea2", "type": "CAUSAL", "certainty": 0.85, "description": "causes"}]
+    ;
+
+    const relationships = try client.parseResponse(response);
+    defer {
+        for (relationships) |*rel| {
+            var r = rel.*;
+            r.deinit(allocator);
+        }
+        allocator.free(relationships);
+    }
+
+    try testing.expectEqual(@as(usize, 1), relationships.len);
+    try testing.expectEqualStrings("idea1", relationships[0].from_idea);
+    try testing.expectEqualStrings("idea2", relationships[0].to_idea);
+    try testing.expectEqual(graph.RelationType.causal, relationships[0].relation_type);
+    try testing.expectApproxEqAbs(@as(f32, 0.85), relationships[0].certainty, 0.001);
+}
+
+test "parseResponse returns error for non-array JSON" {
+    const allocator = testing.allocator;
+
+    var client = llm.LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .anthropic,
+            .model = "claude-3",
+            .api_endpoint = "https://api.anthropic.com/v1/messages",
+            .auth_header = "x-api-key",
+            .auth_prefix = "",
+        },
+    };
+    defer client.http_client.deinit();
+
+    const response = \\{"not": "an array"}
+    ;
+
+    const result = client.parseResponse(response);
+    try testing.expectError(error.InvalidJSONFormat, result);
+}
+
+test "parseResponse skips items with missing fields" {
+    const allocator = testing.allocator;
+
+    var client = llm.LLMClient{
+        .allocator = allocator,
+        .api_key = null,
+        .http_client = std.http.Client{ .allocator = allocator },
+        .config = .{},
+        .provider_config = .{
+            .provider = .anthropic,
+            .model = "claude-3",
+            .api_endpoint = "https://api.anthropic.com/v1/messages",
+            .auth_header = "x-api-key",
+            .auth_prefix = "",
+        },
+    };
+    defer client.http_client.deinit();
+
+    const response =
+        \\[{"from": "idea1", "type": "CAUSAL", "certainty": 0.5, "description": "test"}, {"from": "a", "to": "b", "type": "ANALOGOUS", "certainty": 0.9, "description": "similar"}]
+    ;
+
+    const relationships = try client.parseResponse(response);
+    defer {
+        for (relationships) |*rel| {
+            var r = rel.*;
+            r.deinit(allocator);
+        }
+        allocator.free(relationships);
+    }
+
+    try testing.expectEqual(@as(usize, 1), relationships.len);
+    try testing.expectEqualStrings("a", relationships[0].from_idea);
+}
