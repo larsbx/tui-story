@@ -9,7 +9,6 @@ pub const APIProvider = enum {
     openai,
     custom,
 
-    // TODO: Add unit tests for APIProvider.fromString()
     pub fn fromString(s: []const u8) APIProvider {
         if (std.ascii.eqlIgnoreCase(s, "anthropic")) return .anthropic;
         if (std.ascii.eqlIgnoreCase(s, "openai")) return .openai;
@@ -518,3 +517,26 @@ pub const Relationship = struct {
         allocator.free(self.description);
     }
 };
+
+// Unit tests
+test "APIProvider.fromString returns anthropic for various cases" {
+    try std.testing.expectEqual(APIProvider.anthropic, APIProvider.fromString("anthropic"));
+    try std.testing.expectEqual(APIProvider.anthropic, APIProvider.fromString("ANTHROPIC"));
+    try std.testing.expectEqual(APIProvider.anthropic, APIProvider.fromString("Anthropic"));
+    try std.testing.expectEqual(APIProvider.anthropic, APIProvider.fromString("AnThRoPiC"));
+}
+
+test "APIProvider.fromString returns openai for various cases" {
+    try std.testing.expectEqual(APIProvider.openai, APIProvider.fromString("openai"));
+    try std.testing.expectEqual(APIProvider.openai, APIProvider.fromString("OPENAI"));
+    try std.testing.expectEqual(APIProvider.openai, APIProvider.fromString("OpenAI"));
+    try std.testing.expectEqual(APIProvider.openai, APIProvider.fromString("OpenAi"));
+}
+
+test "APIProvider.fromString returns custom for unknown providers" {
+    try std.testing.expectEqual(APIProvider.custom, APIProvider.fromString("custom"));
+    try std.testing.expectEqual(APIProvider.custom, APIProvider.fromString("ollama"));
+    try std.testing.expectEqual(APIProvider.custom, APIProvider.fromString("local"));
+    try std.testing.expectEqual(APIProvider.custom, APIProvider.fromString(""));
+    try std.testing.expectEqual(APIProvider.custom, APIProvider.fromString("unknown"));
+}
