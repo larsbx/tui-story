@@ -9,15 +9,14 @@
 
 ## Executive Summary
 
-**Recommendation**: ✅ **FEASIBLE with Strategic Modifications**
+**Recommendation**: ✅ **HIGHLY FEASIBLE - TUI Experience Can Be Maintained**
 
-Porting this Zig-based semantic graph application to Elixir with Ash is technically feasible but requires significant architectural changes. Elixir/Ash excels at concurrent web APIs but the TUI component and graph-specific operations need alternative approaches.
+Porting this Zig-based semantic graph application to Elixir with Ash is highly feasible and can maintain the terminal UI experience using **Ratatouille**. Elixir/Ash provides excellent concurrency, and Ratatouille offers similar TUI capabilities to libvaxis.
 
 **Key Findings**:
-- **High Compatibility**: MCP HTTP server, LLM integration, concurrent access patterns
+- **High Compatibility**: MCP HTTP server, LLM integration, concurrent access patterns, **TUI via Ratatouille**
 - **Medium Compatibility**: Graph data modeling, relationship analysis workflows
-- **Low Compatibility**: TUI interface (requires different tooling)
-- **Estimated Effort**: 6-8 weeks (single developer)
+- **Estimated Effort**: 5-7 weeks (single developer, reduced from initial estimate)
 
 ---
 
@@ -462,110 +461,360 @@ end
 - ✅ Cleaner error handling with pattern matching
 - ✅ Easy to swap HTTP client (Req, Finch, HTTPoison)
 
-### 3.5 TUI Interface: Critical Decision Point
+### 3.5 TUI Interface: ✅ Ratatouille Maintains Terminal Experience
 
-#### ❌ libvaxis (Zig) → No Direct Equivalent in Elixir
+#### Recommended: Ratatouille (Elixir TUI Library)
 
-**Current**: Terminal UI with vaxis library
-**Problem**: Elixir has minimal TUI support
+**Good News**: Elixir has **Ratatouille**, a mature TUI library that can replicate your current terminal interface experience!
 
-**Options**:
+**Ratatouille** follows the Elm Architecture (similar to Redux) and provides:
+- Terminal rendering with colors, borders, panels
+- Keyboard/mouse event handling
+- Layout system (rows, columns, tables)
+- Built on ExTermbox (Elixir bindings to Termbox)
+- Active maintenance and community support
 
-##### Option A: Phoenix LiveView (Web-based TUI)
+#### Complete UI Mode Implementation
+
+Here's how your current Zig UI modes map directly to Ratatouille:
+
 ```elixir
-defmodule AppWeb.GraphLive do
-  use Phoenix.LiveView
+defmodule SemanticGraphTUI do
+  @behaviour Ratatouille.App
 
-  def mount(_params, _session, socket) do
-    {:ok, assign(socket,
-      ideas: load_ideas(),
-      graph_svg: generate_graph_svg(),
-      input: "",
-      mode: :help
-    )}
+  import Ratatouille.View
+  import Ratatouille.Constants, only: [key: 1, color: 1]
+
+  # Matches ui.zig:10-19
+  defmodule State do
+    defstruct mode: :help,
+              ideas: [],
+              current_input: "",
+              selected_edge: nil,
+              error_message: nil,
+              graph: nil,
+              analyzing: false
   end
 
-  def handle_event("add_idea", %{"content" => content}, socket) do
-    # Add idea via Ash action
-    {:ok, result} = GraphAPI.Graph.analyze_new_idea(%{content: content})
-
-    # Update UI reactively
-    {:noreply, assign(socket,
-      ideas: load_ideas(),
-      graph_svg: generate_graph_svg()
-    )}
-  end
-end
-```
-
-**Pros**:
-- ✅ Real-time updates (WebSocket)
-- ✅ Rich visualization (D3.js for graph layout)
-- ✅ Accessible from any browser
-- ✅ Multi-user support
-
-**Cons**:
-- ❌ Not a true terminal app
-- ❌ Requires browser
-- ❌ Different UX paradigm
-
-##### Option B: Ratatouille (Elixir TUI Library)
-```elixir
-defmodule GraphTUI do
-  use Ratatouille.App
-
+  @impl true
   def init(_context) do
-    %{ideas: [], mode: :help, input: ""}
+    %State{
+      graph: GraphAPI.list_all_vertices()
+    }
   end
 
+  # Event handling - matches ui.zig:63-160
+  @impl true
   def update(model, msg) do
-    case msg do
-      {:event, %{key: key}} when key == ?e ->
-        %{model | mode: :input}
+    case {model.mode, msg} do
+      # Help mode (ui.zig:65-78)
+      {:help, {:event, %{ch: ?e}}} ->
+        %{model | mode: :input, current_input: "", error_message: nil}
 
-      {:event, %{key: key}} when key == ?\r and model.mode == :input ->
-        # Call Ash action
-        GraphAPI.Graph.analyze_new_idea(%{content: model.input})
-        %{model | mode: :viewing, input: ""}
+      {:help, {:event, %{ch: ?v}}} when length(model.ideas) > 0 ->
+        %{model | mode: :viewing_graph, selected_edge: nil}
+
+      {:help, {:event, %{ch: ?r}}} ->
+        reset_graph()
+        %{model | ideas: [], graph: nil, mode: :help}
+
+      {:help, {:event, %{ch: ?q}}} ->
+        Ratatouille.Runtime.shutdown()
+        model
+
+      # Input mode (ui.zig:80-119)
+      {:input, {:event, %{key: key(:enter)}}} when model.current_input != "" ->
+        case validate_and_analyze(model.current_input) do
+          {:ok, result} ->
+            %{model |
+              mode: :viewing_graph,
+              ideas: [model.current_input | model.ideas],
+              current_input: "",
+              graph: result,
+              error_message: nil
+            }
+
+          {:error, message} ->
+            %{model | error_message: message, current_input: ""}
+        end
+
+      {:input, {:event, %{key: key(:esc)}}} ->
+        %{model | mode: :help, current_input: "", error_message: nil}
+
+      {:input, {:event, %{key: key(:backspace)}}} ->
+        %{model | current_input: String.slice(model.current_input, 0..-2//1)}
+
+      {:input, {:event, %{ch: ch}}} when ch >= 32 and ch < 127 ->
+        %{model | current_input: model.current_input <> <<ch::utf8>>}
+
+      # Viewing graph mode (ui.zig:130-158)
+      {:viewing_graph, {:event, %{key: key(:esc)}}} ->
+        %{model | mode: :help}
+
+      {:viewing_graph, {:event, %{ch: ?h}}} ->
+        %{model | mode: :help}
+
+      {:viewing_graph, {:event, %{key: key(:arrow_up)}}} ->
+        %{model | selected_edge: move_selection(model.selected_edge, :up, model.graph)}
+
+      {:viewing_graph, {:event, %{key: key(:arrow_down)}}} ->
+        %{model | selected_edge: move_selection(model.selected_edge, :down, model.graph)}
 
       _ ->
         model
     end
   end
 
+  # Rendering - matches ui.zig:215-222
+  @impl true
   def render(model) do
+    case model.mode do
+      :help -> render_help(model)
+      :input -> render_input(model)
+      :analyzing -> render_analyzing(model)
+      :viewing_graph -> render_graph(model)
+    end
+  end
+
+  # Help screen - matches ui.zig:225-288
+  defp render_help(model) do
     view do
-      panel title: "Semantic Graph" do
-        label(content: "Ideas: #{length(model.ideas)}")
-        # ... render graph
+      panel title: "Semantic Relationship Graph Analyzer", height: :fill do
+        label(content: "")
+        label(content: "Welcome! Enter ideas one at a time and watch your semantic graph grow.")
+        label(content: "Each new idea is analyzed against all existing ideas to discover relationships.")
+        label(content: "")
+
+        label(content: "Status:", attributes: [color(:yellow)])
+        label(
+          content: "  Ideas in graph: #{length(model.ideas)}",
+          attributes: [color(if length(model.ideas) > 0, do: :green, else: :white)]
+        )
+
+        edges_count = if model.graph, do: length(model.graph.edges), else: 0
+        label(
+          content: "  Relationships found: #{edges_count}",
+          attributes: [color(if edges_count > 0, do: :green, else: :white)]
+        )
+
+        label(content: "")
+        label(content: "Commands:", attributes: [color(:yellow)])
+        label(content: "  [e] - Enter a new idea")
+        label(content: "  [v] - View graph (if ideas exist)")
+        label(content: "  [r] - Reset all data")
+        label(content: "  [q] - Quit")
+
+        if length(model.ideas) > 0 do
+          label(content: "")
+          label(content: "Your Ideas:", attributes: [color(:cyan)])
+
+          for {idea, idx} <- Enum.with_index(model.ideas, 1) do
+            label(content: "  #{idx}. #{idea}")
+          end
+        end
       end
     end
+  end
+
+  # Input screen - matches ui.zig:291-333
+  defp render_input(model) do
+    title_text = if length(model.ideas) == 0 do
+      "Enter your first idea"
+    else
+      "Enter another idea"
+    end
+
+    view do
+      panel title: title_text, height: :fill do
+        if length(model.ideas) > 0 do
+          label(content: "Current ideas: #{length(model.ideas)}", attributes: [color(:white)])
+          label(content: "Your new idea will be compared to all existing ideas", attributes: [color(:white)])
+          label(content: "")
+        end
+
+        label(content: "> #{model.current_input}_", attributes: [color(:green)])
+
+        if model.error_message do
+          label(content: "")
+          label(content: model.error_message, attributes: [color(:red)])
+        end
+
+        label(content: "")
+        label(content: "[Enter] Submit idea  [Esc] Back to menu", attributes: [color(:white)])
+      end
+    end
+  end
+
+  # Analyzing screen - matches ui.zig:336-351
+  defp render_analyzing(model) do
+    view do
+      row do
+        column(size: 12) do
+          panel(title: "Analyzing", height: :fill) do
+            label(content: "")
+            label(content: "   Analyzing semantic relationships...", attributes: [color(:yellow)])
+            label(content: "   Please wait while the LLM processes your idea.")
+            label(content: "")
+            # Could add spinner animation here with periodic updates
+          end
+        end
+      end
+    end
+  end
+
+  # Graph view - matches ui.zig:354-484
+  defp render_graph(model) do
+    view do
+      panel title: "Semantic Relationship Graph", height: :fill do
+        # Render vertices (simplified ASCII representation)
+        render_vertices(model.graph.vertices)
+
+        label(content: "")
+        label(content: "Relationships:", attributes: [color(:cyan)])
+
+        # Render edges with selection
+        for {edge, idx} <- Enum.with_index(model.graph.edges) do
+          is_selected = model.selected_edge == idx
+          attrs = if is_selected, do: [color(:black), background(:white)], else: []
+
+          from = find_vertex(model.graph.vertices, edge.from_vertex_id)
+          to = find_vertex(model.graph.vertices, edge.to_vertex_id)
+          symbol = relationship_symbol(edge.relation_type)
+
+          label(
+            content: "  #{from.content} #{symbol} #{to.content} (#{Float.round(edge.certainty, 2)})",
+            attributes: attrs
+          )
+        end
+
+        label(content: "")
+        label(content: "Legend:", attributes: [color(:yellow)])
+        label(content: "  → Implicative  ⊆ Hierarchical  ⇒ Causal")
+        label(content: "  ⊥ Contradictory  ≡ Synonymous  ≈ Analogous")
+
+        label(content: "")
+        label(content: "[↑↓] Select edge  [Esc/h] Back to menu  [q] Quit", attributes: [color(:white)])
+      end
+    end
+  end
+
+  # Helper functions
+  defp render_vertices(vertices) do
+    # Simple list view (force-directed layout in terminal is complex)
+    label(content: "Vertices:", attributes: [color(:cyan)])
+
+    for vertex <- vertices do
+      label(content: "  • #{vertex.content}")
+    end
+  end
+
+  defp relationship_symbol(type) do
+    case type do
+      :contradictory -> "⊥"
+      :implicative -> "→"
+      :hierarchical -> "⊆"
+      :evolutionary -> "⟿"
+      :analogous -> "≈"
+      :synonymous -> "≡"
+      :antonymous -> "≠"
+      :part_whole -> "∈"
+      :causal -> "⇒"
+    end
+  end
+
+  defp validate_and_analyze(content) do
+    # Call Ash actions
+    with {:ok, _} <- validate_input(content),
+         {:ok, result} <- GraphAPI.Graph.analyze_new_idea(%{content: content}) do
+      {:ok, result}
+    else
+      {:error, reason} -> {:error, format_error(reason)}
+    end
+  end
+
+  defp move_selection(nil, :down, graph) when length(graph.edges) > 0, do: 0
+  defp move_selection(nil, :up, _graph), do: nil
+  defp move_selection(idx, :up, _graph) when idx > 0, do: idx - 1
+  defp move_selection(idx, :up, _graph), do: idx
+  defp move_selection(idx, :down, graph) when idx < length(graph.edges) - 1, do: idx + 1
+  defp move_selection(idx, :down, _graph), do: idx
+
+  defp find_vertex(vertices, id) do
+    Enum.find(vertices, fn v -> v.id == id end)
+  end
+
+  defp reset_graph do
+    GraphAPI.Graph.reset_graph()
+  end
+
+  defp validate_input(content) do
+    cond do
+      String.trim(content) == "" -> {:error, "Input cannot be empty"}
+      String.length(content) > 1000 -> {:error, "Input too long (max 1000 characters)"}
+      true -> {:ok, content}
+    end
+  end
+
+  defp format_error(error), do: "Error: #{inspect(error)}"
+end
+```
+
+#### Running the TUI Application
+
+```elixir
+# In your main application module
+defmodule SemanticGraph.Application do
+  use Application
+
+  def start(_type, _args) do
+    children = [
+      # Start the Ash API and resources
+      {GraphAPI, []},
+
+      # Start the Ratatouille app
+      {Ratatouille.Runtime.Supervisor,
+        runtime: [app: SemanticGraphTUI, shutdown: {:application, :semantic_graph}]}
+    ]
+
+    opts = [strategy: :one_for_one, name: SemanticGraph.Supervisor]
+    Supervisor.start_link(children, opts)
   end
 end
 ```
 
-**Pros**:
-- ✅ True terminal interface
-- ✅ Similar to current UX
+**Advantages of Ratatouille**:
+- ✅ **True terminal interface** - maintains CLI-first experience
+- ✅ **Event-driven architecture** - similar to your current event loop
+- ✅ **Color and styling** - supports Unicode symbols (⊥, →, ⊆, etc.)
+- ✅ **Layout system** - panels, rows, columns like libvaxis
+- ✅ **Active development** - well-maintained with good documentation
+- ✅ **Pure Elixir** - no FFI or C bindings to manage
+- ✅ **Testing support** - can simulate key events in tests
 
-**Cons**:
-- ⚠️ Ratatouille is less mature than libvaxis
-- ⚠️ Limited layout capabilities
-- ❌ No good force-directed graph rendering in terminal
+**Considerations**:
+- ⚠️ **Graph visualization**: Terminal-based force-directed layout is complex; simplified ASCII representation works well for text-heavy graphs
+- ⚠️ **Performance**: Elixir VM adds slight overhead vs. compiled Zig (negligible for I/O-bound LLM calls)
+- ✅ **Can always add Phoenix LiveView later** for web-based visualization without removing TUI
 
-##### Option C: Keep Zig TUI + Elixir Backend (Hybrid)
+#### Alternative: Dual Interface Strategy
 
-Use Zig TUI as a client, Elixir as backend via HTTP MCP.
+You can provide **both** TUI and web interfaces:
 
-**Pros**:
-- ✅ Best of both worlds
-- ✅ Reuse existing TUI code
+```elixir
+# CLI mode (default)
+$ ./semantic_graph
+> Launches Ratatouille TUI
 
-**Cons**:
-- ❌ Maintains two codebases
-- ❌ Defeats purpose of full port
+# Web mode
+$ ./semantic_graph --web
+> Starts Phoenix server on http://localhost:4000
 
-**Recommendation**: **Use Phoenix LiveView** for modern web interface with better visualization capabilities.
+# MCP server mode
+$ ./semantic_graph --mcp
+> Runs headless MCP JSON-RPC server
+```
+
+This gives users flexibility without sacrificing the terminal experience.
 
 ---
 
@@ -597,13 +846,13 @@ Use Zig TUI as a client, Elixir as backend via HTTP MCP.
 
 **Deliverable**: MCP HTTP server compatible with Claude Desktop
 
-#### Phase 4: LiveView Interface (1.5 weeks)
-1. Design LiveView UI mockups
-2. Implement graph visualization with D3.js
-3. Port input handling and modes
-4. Add real-time updates
+#### Phase 4: Ratatouille TUI Interface (1 week)
+1. Set up Ratatouille runtime and supervision
+2. Implement UI modes (help, input, analyzing, viewing_graph)
+3. Port keyboard event handling
+4. Add graph rendering with ASCII/Unicode symbols
 
-**Deliverable**: Web-based graph interface
+**Deliverable**: Terminal UI with feature parity to Zig version
 
 #### Phase 5: Concurrency & Performance (1 week)
 1. Optimize ETS usage
@@ -618,7 +867,7 @@ Use Zig TUI as a client, Elixir as backend via HTTP MCP.
 Can develop in parallel:
 - ✅ Domain logic (Phase 1) independent of UI
 - ✅ LLM client (Phase 2) can be tested standalone
-- ✅ MCP server (Phase 3) and LiveView (Phase 4) are separate interfaces
+- ✅ MCP server (Phase 3) and Ratatouille TUI (Phase 4) are separate interfaces
 
 ### 4.3 Testing Strategy
 
@@ -634,9 +883,10 @@ test/
 ├── mcp/
 │   ├── protocol_test.exs          # JSON-RPC compliance
 │   └── integration_test.exs       # End-to-end MCP flows
-└── app_web/
-    ├── mcp_controller_test.exs    # HTTP endpoint tests
-    └── graph_live_test.exs        # LiveView integration tests
+├── app_web/
+│   └── mcp_controller_test.exs    # HTTP endpoint tests
+└── tui/
+    └── ratatouille_test.exs       # TUI event simulation tests
 ```
 
 ---
@@ -649,7 +899,7 @@ test/
 |------|--------|-------------|------------|
 | **Graph operations don't fit Ash model** | High | Medium | Use custom actions, fallback to GenServer |
 | **Performance degradation** | Medium | Low | ETS is fast, profile early |
-| **TUI experience loss** | High | High | Accept trade-off, use LiveView |
+| **Ratatouille rendering limitations** | Medium | Low | Use simplified ASCII graph representation |
 | **MCP protocol incompatibility** | High | Low | Maintain strict JSON-RPC 2.0 compliance |
 | **LLM integration complexity** | Medium | Low | Tesla handles most edge cases |
 | **Team unfamiliar with Elixir** | High | ? | Training period, pair programming |
@@ -681,59 +931,70 @@ test/
 
 #### Trade-offs
 
-❌ **TUI Loss**:
-- No equivalent to libvaxis in Elixir
-- Must accept web-based interface
+✅ **TUI Maintained**:
+- Ratatouille provides terminal interface
+- Similar feature set to libvaxis
+- Simplified graph rendering (ASCII art vs. force-directed layout)
 
 ⚠️ **Performance**:
 - Erlang VM adds overhead vs. compiled Zig
 - For this use case: negligible (I/O bound by LLM calls)
+- Ratatouille rendering ~60fps (more than sufficient)
 
 ⚠️ **Binary Size**:
 - Zig binary: ~500KB-2MB
 - Elixir release: ~30-50MB (includes Erlang VM)
+- Trade-off: Larger binary for OTP runtime benefits
 
 ⚠️ **Startup Time**:
 - Zig: <100ms
 - Elixir: ~1-2 seconds (VM initialization)
+- Acceptable for interactive TUI application
 
 ---
 
 ## 6. Recommendations
 
-### 6.1 Primary Recommendation: ✅ **PROCEED with Elixir/Ash**
+### 6.1 Primary Recommendation: ✅ **PROCEED with Elixir/Ash + Ratatouille**
 
-**If your goals include**:
-- Scaling to many concurrent users
-- Web-based interface acceptable
-- Future database persistence
-- Rich API ecosystem
-- Fault-tolerant system
+**Strong recommendation because**:
+- ✅ **Maintains terminal UI experience** via Ratatouille
+- ✅ Excellent concurrency for MCP HTTP server
+- ✅ Cleaner, more maintainable code (declarative Ash resources)
+- ✅ Rich Elixir ecosystem (Tesla, Phoenix, Ecto)
+- ✅ Built-in OTP supervision and fault tolerance
+- ✅ Optional Phoenix LiveView for web interface later
 
 **Architecture**:
 ```
-Elixir/Phoenix Application
+Elixir Application
 ├── Ash Resources (Vertex, Edge, Graph)
-├── Phoenix LiveView (Web UI)
-├── Phoenix HTTP (MCP Protocol)
+├── Ratatouille TUI (Terminal Interface) ← Primary UI
+├── Phoenix HTTP (MCP Protocol Server)
 ├── GenServer (Graph Manager)
-├── Tesla/Req (LLM Client)
+├── Tesla/Req (LLM Client with retry/timeout)
 └── ETS (In-memory storage)
+
+Optional:
+└── Phoenix LiveView (Web UI for collaboration)
 ```
 
-### 6.2 Alternative: ❌ **KEEP Zig** if...
+### 6.2 Alternative: ⚠️ **KEEP Zig** if...
 
-- Terminal UI is critical requirement
-- Single-user CLI tool is the primary use case
-- Performance is paramount (sub-millisecond latency)
-- No need for web APIs or concurrency
+**Only consider staying with Zig if**:
+- Team has zero Elixir experience and no time to learn
+- Performance is paramount (sub-100ms latency requirements)
+- Binary size critical (<5MB hard constraint)
+- Instant startup time required (<100ms)
 
-### 6.3 Hybrid Approach: ⚠️ **Consider for transition**
+Note: For this application, these constraints likely don't apply since:
+- I/O bound by LLM API calls (seconds of latency)
+- Interactive TUI tolerates 1-2s startup time
+- 30-50MB binary size is reasonable for modern systems
 
-1. Port backend to Elixir/Ash (MCP server only)
-2. Keep Zig TUI as MCP client
-3. Gradually introduce LiveView as optional interface
-4. Deprecate Zig TUI over time
+### 6.3 Hybrid Approach: ❌ **NOT Recommended**
+
+Given that Ratatouille maintains the TUI experience, a hybrid approach (Zig TUI + Elixir backend) is unnecessary complexity. Choose either full Elixir or full Zig.
 
 ---
 
@@ -834,36 +1095,50 @@ end
 
 ## 8. Conclusion
 
-### 8.1 Feasibility: ✅ **YES**
+### 8.1 Feasibility: ✅ **HIGHLY FEASIBLE**
 
-Porting to Elixir/Ash is **technically feasible** with the following caveats:
+Porting to Elixir/Ash is **highly recommended** with **no major compromises**:
 
-1. **Accept web-based UI** instead of TUI
-2. **Use custom Ash actions** for complex graph operations
-3. **Invest in learning** Ash framework patterns
-4. **Estimated timeline**: 6-8 weeks for feature parity
+1. ✅ **Terminal UI maintained** via Ratatouille
+2. ✅ **Improved concurrency** with OTP (thousands of MCP connections)
+3. ✅ **Cleaner architecture** with Ash resources and GenServer
+4. ✅ **Estimated timeline**: 5-7 weeks for feature parity (reduced from 6-8 weeks due to Ratatouille)
 
-### 8.2 When to Choose Elixir/Ash
+**Key Insight**: Discovery of Ratatouille as a viable TUI solution eliminates the primary trade-off that was holding back this port.
 
-✅ **Choose if**:
-- Building a **web service** (MCP HTTP primary interface)
-- Need **high concurrency** (many simultaneous users)
-- Want **fault tolerance** and supervision
-- Plan to add **real-time collaboration**
-- Prefer **declarative** resource definitions
+### 8.2 When to Choose Elixir/Ash + Ratatouille
 
-❌ **Avoid if**:
-- **TUI is non-negotiable**
-- **Single-user CLI** is the primary use case
-- Team has **no Elixir experience** and no time to learn
-- **Binary size** or **startup time** are critical
+✅ **Strongly recommended if**:
+- Building a **concurrent system** (MCP HTTP with multiple clients)
+- Want **terminal-first experience** with Ratatouille TUI
+- Need **fault tolerance** and automatic process supervision
+- Plan to add **real-time collaboration** features later
+- Prefer **declarative** resource definitions over imperative code
+- Want **hot code upgrades** for zero-downtime deployments
+
+⚠️ **Consider staying with Zig only if**:
+- Team has **zero Elixir experience** and no time/budget for learning
+- **Sub-100ms startup time** is a hard requirement
+- **Binary size <5MB** is a hard constraint
+- No plans for concurrency or web features ever
+
+**Verdict**: For most use cases, **Elixir/Ash + Ratatouille is superior** to the current Zig implementation.
 
 ### 8.3 Next Steps
 
-1. **Prototype** core graph operations in Ash (1 day)
-2. **Test** custom action for `analyze_new_idea` (2 days)
-3. **Evaluate** LiveView for graph visualization (2 days)
-4. **Decision point**: Proceed with full port or stay with Zig
+**Recommended prototyping sequence** (3-4 days total):
+
+1. **Day 1**: Set up Phoenix + Ash project, define Vertex/Edge resources
+2. **Day 2**: Implement `analyze_new_idea` custom action with mock LLM
+3. **Day 3**: Build Ratatouille TUI with all 4 modes (help, input, analyzing, viewing)
+4. **Day 4**: Test end-to-end: TUI → Ash actions → graph updates
+
+**Decision point**: After prototype, evaluate:
+- Is Ratatouille TUI comparable to libvaxis for your needs?
+- Are Ash resources expressive enough for graph operations?
+- Is team comfortable with Elixir/Ash patterns?
+
+If all three are "yes" → **Proceed with full port**
 
 ---
 
