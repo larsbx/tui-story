@@ -210,37 +210,39 @@ CONSTRAINT Cardinality(vertices) <= 5  \* Limit to 5 vertices
 
 ## Mapping to Implementation
 
-### SemanticGraphTUI.tla → Source Code
+> **Note**: The implementation has been migrated from Zig to Elixir (Phases 1-4 complete). See `ELIXIR_IMPLEMENTATION_STATUS.md` for details.
 
-| Specification | Implementation |
-|---------------|----------------|
-| `uiMode` | `ui.zig::UIMode` enum |
-| `AddVertex()` | `graph.zig::addVertex()` |
-| `AddEdge()` | `graph.zig::addEdge()` |
-| `ValidateInput` | `validation.zig::validateIdea()` |
-| `StartAnalysis` | `ui.zig::analyzeNewIdea()` |
-| `RetryAnalysis` | `llm.zig::analyzeRelationships()` retry loop |
+### SemanticGraphTUI.tla → Elixir Modules
 
-### SemanticGraphConstraints.tla → graph.zig
+| Specification | Elixir Implementation | Original Zig Reference |
+|---------------|----------------------|------------------------|
+| `uiMode` | `semantic_graph/lib/semantic_graph/tui.ex::State.mode` | `ui.zig::UIMode` |
+| `AddVertex()` | `semantic_graph/lib/semantic_graph/resources/vertex.ex::Vertex.add_idea/1` | `graph.zig::addVertex()` |
+| `AddEdge()` | `semantic_graph/lib/semantic_graph/resources/edge.ex::Edge.add_relationship/1` | `graph.zig::addEdge()` |
+| `ValidateInput` | `semantic_graph/lib/semantic_graph/resources/vertex.ex` (content validation) | `validation.zig::validateIdea()` |
+| `StartAnalysis` | `semantic_graph/lib/semantic_graph/analysis/service.ex::Service.analyze_new_idea/1` | `ui.zig::analyzeNewIdea()` |
+| `RetryAnalysis` | `semantic_graph/lib/semantic_graph/llm/client.ex` (Tesla middleware retry) | `llm.zig::analyzeRelationships()` |
 
-| Specification | Implementation |
-|---------------|----------------|
-| `RelationType` | `graph.zig::RelationType` enum (9 types) |
-| `Vertex` | `graph.zig::Vertex` struct |
-| `Edge` | `graph.zig::Edge` struct |
-| `CalculateLayout` | `graph.zig::calculateLayout()` |
-| `GetVertex()` | `graph.zig::getVertex()` |
-| `EdgeExists()` | `graph.zig::hasEdge()` |
+### SemanticGraphConstraints.tla → Ash Resources
 
-### LLMRetryLogic.tla → llm.zig
+| Specification | Elixir Implementation | Original Zig Reference |
+|---------------|----------------------|------------------------|
+| `RelationType` | `semantic_graph/lib/semantic_graph/resources/edge.ex::Edge.relation_types/0` (9 types) | `graph.zig::RelationType` |
+| `Vertex` | `semantic_graph/lib/semantic_graph/resources/vertex.ex::Vertex` (Ash resource) | `graph.zig::Vertex` |
+| `Edge` | `semantic_graph/lib/semantic_graph/resources/edge.ex::Edge` (Ash resource) | `graph.zig::Edge` |
+| `CalculateLayout` | Handled by TUI rendering (`semantic_graph/lib/semantic_graph/tui.ex`) | `graph.zig::calculateLayout()` |
+| `GetVertex()` | `semantic_graph/lib/semantic_graph/resources/vertex.ex::Vertex.get_by_id!/1` | `graph.zig::getVertex()` |
+| `EdgeExists()` | `semantic_graph/lib/semantic_graph/resources/edge.ex` (duplicate check in before_action) | `graph.zig::hasEdge()` |
 
-| Specification | Implementation |
-|---------------|----------------|
-| `requestState` | Implicit state in `analyzeRelationships()` |
-| `retryCount` | `llm.zig::APIConfig.max_retries` |
-| `CalculateBackoff()` | Exponential backoff in retry loop |
-| `mockMode` | `llm.zig::getMockRelationships()` |
-| `TimeoutMs` | `llm.zig::APIConfig.timeout_ms` |
+### LLMRetryLogic.tla → LLM Client
+
+| Specification | Elixir Implementation | Original Zig Reference |
+|---------------|----------------------|------------------------|
+| `requestState` | Tesla middleware (implicit state) | Implicit in `analyzeRelationships()` |
+| `retryCount` | `semantic_graph/lib/semantic_graph/llm/client.ex` (Tesla.Middleware.Retry max_retries: 3) | `llm.zig::APIConfig.max_retries` |
+| `CalculateBackoff()` | Tesla exponential backoff (max_delay: 8000ms) | Exponential backoff in retry loop |
+| `mockMode` | `semantic_graph/lib/semantic_graph/llm/client.ex::Client.generate_mock_relationships/2` | `llm.zig::getMockRelationships()` |
+| `TimeoutMs` | Tesla receive_timeout: 30_000ms | `llm.zig::APIConfig.timeout_ms` |
 
 ## Verification Checklist
 
@@ -282,13 +284,17 @@ These specifications formalize the design decisions captured in:
 
 ## Testing Correspondence
 
-| TLA+ Property | Test Coverage |
-|---------------|---------------|
-| `UniqueVertexIds` | `tests/unit/graph_test.zig::test "addVertex stores content and returns unique ID"` |
-| `ValidEdgeReferences` | `tests/unit/graph_test.zig::test "addEdge creates relationships"` |
-| `EventuallyCompletesAnalysis` | `tests/integration/workflow_test.zig::test "incremental idea addition workflow"` |
-| `RetryBound` | `tests/unit/llm_test.zig` (retry tests) |
-| `InputLengthBound` | `tests/integration/workflow_test.zig::test "workflow handles validation errors"` |
+> **Note**: Test suite migrated to Elixir ExUnit framework. See `semantic_graph/test/` directory.
+
+| TLA+ Property | Elixir Test Coverage | Original Zig Test |
+|---------------|---------------------|-------------------|
+| `UniqueVertexIds` | `semantic_graph/test/semantic_graph/resources/vertex_test.exs` | `tests/unit/graph_test.zig` |
+| `ValidEdgeReferences` | `semantic_graph/test/semantic_graph/resources/edge_test.exs` | `tests/unit/graph_test.zig` |
+| `EventuallyCompletesAnalysis` | `semantic_graph/test/semantic_graph/integration/workflow_test.exs::"incremental idea addition workflow"` | `tests/integration/workflow_test.zig` |
+| `RetryBound` | `semantic_graph/test/semantic_graph/llm/client_test.exs` (Tesla retry middleware) | `tests/unit/llm_test.zig` |
+| `InputLengthBound` | `semantic_graph/test/semantic_graph/integration/workflow_test.exs::"handles very long content validation"` | `tests/integration/workflow_test.zig` |
+| `CertaintyCoherence` | `semantic_graph/test/semantic_graph/resources/edge_test.exs::"certainty-based deduplication"` | `tests/unit/graph_test.zig` |
+| `GraphRebuildable` | `semantic_graph/test/semantic_graph/integration/workflow_test.exs::"graph can be reset and rebuilt"` | N/A |
 
 ## Future Work
 
