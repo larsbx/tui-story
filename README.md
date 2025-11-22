@@ -1,16 +1,18 @@
 ---
 title: "Semantic Relationship Graph TUI"
 description: "Terminal UI for analyzing semantic relationships between concepts using LLMs"
-tags: [tui, llm, graph, semantic-analysis, zig, terminal, relationships]
-last_updated: 2025-11-20
-version: 0.3.0
+tags: [tui, llm, graph, semantic-analysis, elixir, phoenix, ash-framework, terminal, relationships]
+last_updated: 2025-11-22
+version: 0.4.0
 ---
 
 # Semantic Relationship Graph TUI
 
 ![CI](https://github.com/larsbx/tui-story/workflows/CI/badge.svg)
 
-A terminal user interface (TUI) application built with Zig and libvaxis that analyzes semantic relationships between concepts using LLMs and displays them as an interactive graph. Each new concept is automatically compared to all existing concepts, building a rich semantic network incrementally.
+A terminal user interface (TUI) application built with **Elixir**, **Phoenix**, **Ash Framework**, and **Ratatouille** that analyzes semantic relationships between concepts using LLMs and displays them as an interactive graph. Each new concept is automatically compared to all existing concepts, building a rich semantic network incrementally.
+
+> **🎉 Migration Complete**: The application has been successfully migrated from Zig to Elixir (Phases 1-4 complete). The Elixir implementation provides better concurrency, fault tolerance, and maintainability while preserving all the original functionality. See [`ELIXIR_IMPLEMENTATION_STATUS.md`](ELIXIR_IMPLEMENTATION_STATUS.md) for details.
 
 ## Documentation
 
@@ -57,148 +59,220 @@ A terminal user interface (TUI) application built with Zig and libvaxis that ana
 
 ## Requirements
 
-- Zig 0.13.0 or later
+- **Elixir** 1.14+ and **Erlang/OTP** 25+
+- **Docker** and **Docker Compose** (for Neo4j and Graphiti service)
 - Terminal with Unicode support
 - (Optional) API key for LLM provider (Anthropic, OpenAI, or custom)
 
 ## Installation
 
-1. Install Zig:
-```bash
-# Download Zig 0.13.0
-wget https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz
-tar -xf zig-linux-x86_64-0.13.0.tar.xz
-export PATH="$PWD/zig-linux-x86_64-0.13.0:$PATH"
-```
+### Quick Start with Docker
 
-2. Clone and build:
 ```bash
+# 1. Clone the repository
 git clone <repository-url>
 cd tui-story
-zig build
+
+# 2. Set up environment
+make setup
+# Edit .env with your API keys
+
+# 3. Start services (Neo4j + Graphiti)
+make start
+
+# 4. Install Elixir dependencies
+cd semantic_graph
+mix deps.get
+mix compile
+
+# 5. Run the TUI application
+iex -S mix
+```
+
+### Manual Installation
+
+1. **Install Elixir and Erlang**:
+```bash
+# Using asdf (recommended)
+asdf install elixir 1.16.0
+asdf install erlang 26.2
+
+# Or use your package manager
+# Ubuntu/Debian: apt install elixir erlang
+# macOS: brew install elixir
+```
+
+2. **Install dependencies**:
+```bash
+cd semantic_graph
+mix deps.get
+mix compile
+```
+
+3. **Start the application**:
+```bash
+# With TUI
+iex -S mix
+
+# Or run tests
+mix test
 ```
 
 ## Testing
 
-This project includes comprehensive unit tests to ensure code quality and prevent regressions.
+This project includes comprehensive unit and integration tests using **ExUnit** to ensure code quality and prevent regressions.
 
 ### Running Tests
 
 ```bash
+# Navigate to the Elixir project
+cd semantic_graph
+
 # Run all tests
-zig build test
+mix test
 
 # Run tests with detailed output
-zig build test --summary all
+mix test --trace
 
-# Run tests with verbose output (useful for debugging)
-zig build test --summary all --verbose
+# Run specific test file
+mix test test/semantic_graph/resources/vertex_test.exs
+
+# Run tests with coverage
+mix test --cover
 ```
 
 ### Test Structure
 
 ```
-tests/
-├── unit/              # Unit tests for individual modules
-│   ├── graph_test.zig # Graph data structure tests
-│   ├── llm_test.zig   # LLM client tests
-│   └── ui_test.zig    # UI state management tests
-├── integration/       # Integration tests (future)
-└── fixtures/          # Test data and fixtures (future)
+semantic_graph/test/
+├── test_helper.exs                      # Test configuration
+└── semantic_graph/
+    ├── resources/                       # Resource tests
+    │   ├── vertex_test.exs              # Vertex (concept) tests
+    │   └── edge_test.exs                # Edge (relationship) tests
+    ├── llm/                             # LLM client tests
+    │   └── client_test.exs              # API client and mock tests
+    ├── analysis/                        # Analysis service tests
+    │   └── service_test.exs             # Orchestration logic tests
+    ├── graphiti/                        # Graphiti integration tests
+    │   ├── client_test.exs              # HTTP client tests
+    │   └── integration_test.exs         # GenServer integration tests
+    └── integration/                     # End-to-end tests
+        └── workflow_test.exs            # Incremental idea workflow tests
 ```
 
 ### Test Coverage
 
-The test suite includes:
+The Elixir test suite includes:
 
-- **Graph Module** (21 tests):
-  - RelationType conversions and properties
-  - Vertex and edge management
-  - Memory safety validation
-  - Layout algorithm correctness
-  - Boundary condition handling
+- **Vertex Resource** (8+ tests):
+  - Content validation (length, emptiness, whitespace)
+  - Group assignment
+  - Position management
+  - CRUD operations
 
-- **LLM Module** (16 tests):
-  - Client initialization
-  - Prompt building and formatting
+- **Edge Resource** (12+ tests):
+  - All 9 relationship types
+  - Certainty validation (0.0-1.0 range)
+  - Self-loop prevention
+  - Certainty-based deduplication
+  - Symbol mapping
+
+- **LLM Client** (5+ tests):
   - Mock relationship generation
-  - Memory safety for relationships
-  - API fallback behavior
+  - Provider configuration (Anthropic, OpenAI, custom)
+  - Retry logic with exponential backoff
 
-- **UI Module** (15 tests):
-  - State initialization
-  - Mode transitions
-  - Idea list management
-  - Input buffer handling
-  - Memory safety for UI state
+- **Analysis Service** (4+ tests):
+  - First idea creation
+  - Multi-idea relationship analysis
+  - Async task execution
 
-**Total: 52+ unit tests**
+- **Graphiti Integration** (6+ tests):
+  - Health check scenarios
+  - Concept syncing
+  - Graceful degradation
 
-### Memory Safety
+- **Integration Workflows** (15+ tests):
+  - Incremental idea addition
+  - Validation error handling
+  - Graph state consistency
+  - Async analysis
 
-All tests use Zig's `GeneralPurposeAllocator` with leak detection to ensure proper memory management:
+**Total: 50+ tests**
 
-```zig
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-defer {
-    const leaked = gpa.deinit();
-    try testing.expect(leaked == .ok); // Fail if memory leaked
-}
-```
+### Memory Safety & Fault Tolerance
+
+Elixir provides built-in memory safety and fault tolerance through:
+
+- **BEAM VM**: Garbage collection and process isolation
+- **OTP Supervision Trees**: Automatic process restart on failure
+- **Immutability**: No memory leaks from shared mutable state
+- **Process Isolation**: Crashes don't affect other parts of the system
 
 ### Continuous Integration
 
 Tests run automatically on every push via GitHub Actions:
 - ✅ All tests must pass
-- ✅ Code formatting must be correct (`zig fmt --check`)
-- ✅ Builds verified on Ubuntu and macOS
+- ✅ Code formatting must be correct (`mix format --check-formatted`)
+- ✅ Builds verified on Ubuntu
 
 See `.github/workflows/ci.yml` for CI configuration.
 
 ### Writing Tests
 
-When adding new features, include tests:
+When adding new features, include tests using ExUnit:
 
-```zig
-const std = @import("std");
-const testing = std.testing;
-const your_module = @import("../../src/your_module.zig");
+```elixir
+defmodule SemanticGraph.YourModuleTest do
+  use ExUnit.Case, async: true
 
-test "your test description" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const leaked = gpa.deinit();
-        try testing.expect(leaked == .ok);
-    }
-    const allocator = gpa.allocator();
+  alias SemanticGraph.YourModule
 
-    // Your test code here
-    try testing.expect(condition);
-}
+  setup do
+    # Setup code here
+    :ok
+  end
+
+  describe "your_function/1" do
+    test "does what it should do" do
+      result = YourModule.your_function(input)
+      assert result == expected
+    end
+  end
+end
 ```
 
 ## Usage
 
 ### Run the TUI application:
 ```bash
-zig build run
+cd semantic_graph
+iex -S mix
 ```
+
+The Ratatouille TUI will start automatically. Use the keyboard shortcuts listed in the help screen to interact with the application.
 
 ### Run as MCP server (headless mode):
 
-**Single client (stdio):**
-```bash
-./zig-out/bin/semantic-graph-tui --mcp
-```
-
-**Multiple concurrent clients (HTTP):**
-```bash
-./zig-out/bin/semantic-graph-tui --http
-# or specify custom port:
-./zig-out/bin/semantic-graph-tui --http 8080
-```
+> **Note**: MCP server mode is planned for Phase 5. The Elixir/Phoenix backend is ready for MCP integration.
 
 For complete MCP server documentation, see **[MCP Server Mode](./docs/MCP_SERVER.md)**.
+
+### Run Graphiti Services (Optional):
+
+For enhanced semantic analysis with temporal knowledge graphs:
+
+```bash
+# Start Neo4j and Graphiti service
+make start
+
+# Check service health
+make health
+
+# View logs
+make logs
+```
 
 ### LLM Provider Configuration
 
@@ -315,22 +389,45 @@ See [Analysis Workflow diagram](./docs/architecture/diagrams/analysis-workflow.m
 ### File Structure
 ```
 tui-story/
-├── build.zig                    # Build configuration
-├── build.zig.zon                # Dependencies (libvaxis)
-├── docs/architecture/           # Architecture documentation & ADRs
-└── src/
-    ├── main.zig                 # Application entry point and event loop
-    ├── graph.zig                # Graph data structures (vertices, edges)
-    ├── llm.zig                  # LLM API client (with retry/timeout)
-    ├── ui.zig                   # User interface rendering
-    ├── analysis_service.zig     # Business logic orchestration
-    ├── mcp_server.zig           # MCP server (JSON-RPC 2.0 over stdio, single client)
-    ├── mcp_server_concurrent.zig # MCP server (HTTP, multi-client concurrent)
-    ├── thread_safe_graph.zig    # Thread-safe graph wrapper with mutex
-    └── validation.zig           # Input validation layer
+├── semantic_graph/                      # Elixir/Phoenix application
+│   ├── lib/
+│   │   ├── semantic_graph/
+│   │   │   ├── application.ex           # OTP supervision tree
+│   │   │   ├── resources/
+│   │   │   │   ├── vertex.ex            # Vertex (concept) Ash resource
+│   │   │   │   └── edge.ex              # Edge (relationship) Ash resource
+│   │   │   ├── graph_api.ex             # Ash domain & convenience API
+│   │   │   ├── llm/
+│   │   │   │   └── client.ex            # LLM API client (Tesla, retry logic)
+│   │   │   ├── analysis/
+│   │   │   │   └── service.ex           # Analysis orchestration
+│   │   │   ├── graphiti/
+│   │   │   │   ├── client.ex            # Graphiti HTTP client
+│   │   │   │   └── integration.ex       # Graphiti GenServer integration
+│   │   │   └── tui.ex                   # Ratatouille TUI application
+│   │   └── semantic_graph_web/
+│   │       ├── endpoint.ex              # Phoenix HTTP endpoint
+│   │       ├── router.ex                # HTTP routes
+│   │       ├── telemetry.ex             # Metrics & observability
+│   │       └── controllers/
+│   │           ├── health_controller.ex # Health check endpoint
+│   │           └── (MCP in Phase 5)     # MCP JSON-RPC controller
+│   ├── config/                          # Environment configuration
+│   ├── test/                            # ExUnit test suite
+│   └── mix.exs                          # Project dependencies
+├── graphiti_service/                    # Python FastAPI service
+│   ├── main.py                          # FastAPI application
+│   ├── graphiti_client.py               # Neo4j/Graphiti client
+│   └── models.py                        # Pydantic models
+├── docs/architecture/                   # Architecture documentation & ADRs
+├── specs/                               # TLA+ formal specifications
+├── docker-compose.yml                   # Service orchestration
+└── Makefile                             # Convenience commands
 ```
 
 See [ADR-005](./docs/architecture/ADR-005-service-layer-extraction.md) for service layer rationale.
+See [ADR-006](./docs/architecture/ADR-006-graphiti-knowledge-graph-integration.md) for Graphiti integration.
+See [ELIXIR_IMPLEMENTATION_STATUS.md](./ELIXIR_IMPLEMENTATION_STATUS.md) for migration details.
 
 ### Data Structures
 
@@ -434,55 +531,92 @@ See [specs/README.md](./specs/README.md) for mapping between specifications and 
 
 ### Adding New Relationship Types
 
-Edit `src/graph.zig` and add to the `RelationType` enum:
+Edit `semantic_graph/lib/semantic_graph/resources/edge.ex` and add to the relationship types:
 
-```zig
-pub const RelationType = enum {
-    // ... existing types ...
-    your_new_type,
+```elixir
+defmodule SemanticGraph.Resources.Edge do
+  # ...existing code...
 
-    pub fn toString(self: RelationType) []const u8 {
-        return switch (self) {
-            // ... existing cases ...
-            .your_new_type => "YOUR_NEW_TYPE",
-        };
-    }
+  @relation_types [
+    # ... existing types ...
+    :your_new_type
+  ]
 
-    pub fn getSymbol(self: RelationType) []const u8 {
-        return switch (self) {
-            // ... existing cases ...
-            .your_new_type => "★",
-        };
-    }
-};
+  # Add symbol mapping
+  def relation_symbol(:your_new_type), do: "★"
+  def relation_symbol(type), do: "?" # fallback
+
+  # Update validation if needed
+end
 ```
 
-### Implementing Real LLM Integration
+### Implementing Custom LLM Providers
 
-Edit `src/llm.zig` and implement the `callAPI` and `parseResponse` functions:
+Edit `semantic_graph/lib/semantic_graph/llm/client.ex` to add new providers:
 
-```zig
-fn callAPI(self: *LLMClient, prompt: []const u8) ![]const u8 {
-    // Use std.http.Client to make API calls
-    // Format request according to your LLM provider's API
-    // Return the JSON response
-}
+```elixir
+defmodule SemanticGraph.LLM.Client do
+  # Add your provider configuration
+  defp get_config do
+    provider = System.get_env("LLM_PROVIDER", "your_provider")
 
-fn parseResponse(self: *LLMClient, response: []const u8) ![]Relationship {
-    // Parse JSON response
-    // Extract relationships
-    // Return array of Relationship structs
-}
+    case provider do
+      "your_provider" ->
+        %{
+          base_url: "https://your-api.example.com",
+          model: "your-model",
+          api_key: System.get_env("YOUR_API_KEY")
+        }
+      # ... existing providers ...
+    end
+  end
+
+  # Implement provider-specific request formatting
+  defp format_request(prompt, config) do
+    # Your custom request format
+  end
+end
 ```
 
-### Customizing Graph Layout
+### Customizing TUI Appearance
 
-Edit the `calculateLayout` function in `src/graph.zig` to adjust:
-- Initial positioning
-- Force-directed algorithm parameters
-- Group separation distance
+Edit `semantic_graph/lib/semantic_graph/tui.ex` to customize the interface:
 
-See [Graph Layout Algorithm diagram](./docs/architecture/diagrams/graph-layout.md) for implementation details and [ADR-003](./docs/architecture/ADR-003-force-directed-graph-layout.md) for algorithm selection rationale.
+```elixir
+defmodule SemanticGraph.TUI do
+  # Customize colors, layouts, animations
+  # Adjust rendering functions
+  # Add new keyboard shortcuts
+end
+```
+
+### Adding New Ash Actions
+
+To add custom operations on Vertex or Edge resources:
+
+```elixir
+# In semantic_graph/lib/semantic_graph/resources/vertex.ex
+
+actions do
+  # ... existing actions ...
+
+  update :your_custom_action do
+    accept [:field1, :field2]
+
+    change fn changeset, _context ->
+      # Your custom logic here
+      changeset
+    end
+  end
+end
+
+# Create code interface
+code_interface do
+  define :your_custom_action, args: [:field1, :field2]
+end
+```
+
+See [Ash Framework documentation](https://ash-hq.org) for advanced patterns.
 
 ## License
 
@@ -495,5 +629,13 @@ Contributions welcome! Please feel free to submit issues or pull requests.
 ## Credits
 
 Built with:
-- [Zig](https://ziglang.org/) - Programming language
-- [libvaxis](https://github.com/rockorager/libvaxis) - Terminal UI library
+- [Elixir](https://elixir-lang.org/) - Functional programming language
+- [Phoenix Framework](https://www.phoenixframework.org/) - Web framework
+- [Ash Framework](https://ash-hq.org/) - Declarative resource framework
+- [Ratatouille](https://github.com/ndreynolds/ratatouille) - Terminal UI library
+- [Tesla](https://github.com/elixir-tesla/tesla) - HTTP client
+- [Graphiti](https://github.com/getzep/graphiti) - Temporal knowledge graph (Python)
+- [Neo4j](https://neo4j.com/) - Graph database
+
+Originally prototyped with:
+- [Zig](https://ziglang.org/) - Systems programming language (migrated to Elixir in v0.4.0)
