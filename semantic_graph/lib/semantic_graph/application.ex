@@ -18,16 +18,16 @@ defmodule SemanticGraph.Application do
       {SemanticGraph.Graphiti.Integration, []},
       # Start the Phoenix Endpoint (optional for web interface)
       # SemanticGraphWeb.Endpoint,
-      # Start Ratatouille TUI (will be added in Phase 4)
-      # {Ratatouille.Runtime.Supervisor,
-      #   runtime: [
-      #     app: SemanticGraph.TUI,
-      #     shutdown: {:application, :semantic_graph},
-      #     quit_events: [
-      #       {:key, Ratatouille.Constants.key(:ctrl_c)},
-      #       {:key, Ratatouille.Constants.key(:ctrl_d)}
-      #     ]
-      #   ]}
+      # Start Ratatouille TUI (Phase 4 - Complete)
+      {Ratatouille.Runtime.Supervisor,
+        runtime: [
+          app: SemanticGraph.TUI,
+          shutdown: {:application, :semantic_graph},
+          quit_events: [
+            {:key, Ratatouille.Constants.key(:ctrl_c)},
+            {:key, Ratatouille.Constants.key(:ctrl_d)}
+          ]
+        ]}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
