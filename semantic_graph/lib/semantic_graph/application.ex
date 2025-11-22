@@ -14,10 +14,8 @@ defmodule SemanticGraph.Application do
       {Phoenix.PubSub, name: SemanticGraph.PubSub},
       # Start Finch
       {Finch, name: SemanticGraph.Finch},
-      # Start the Ash domain (will be added in Phase 2)
-      # SemanticGraph.GraphAPI,
-      # Start Graphiti integration (will be added in Phase 3)
-      # {SemanticGraph.Graphiti.Integration, []},
+      # Start Graphiti integration (Phase 3)
+      {SemanticGraph.Graphiti.Integration, []},
       # Start the Phoenix Endpoint (optional for web interface)
       # SemanticGraphWeb.Endpoint,
       # Start Ratatouille TUI (will be added in Phase 4)
