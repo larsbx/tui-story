@@ -281,52 +281,50 @@ The application supports multiple LLM providers. Without configuration, it uses 
 #### Anthropic (default)
 ```bash
 export ANTHROPIC_API_KEY="your-api-key-here"
-zig build run
+cd semantic_graph
+iex -S mix
 ```
 
 #### OpenAI
 ```bash
 export LLM_PROVIDER="openai"
 export OPENAI_API_KEY="your-api-key-here"
-zig build run
+cd semantic_graph
+iex -S mix
 ```
 
 #### Custom API (e.g., local LLM, Ollama, etc.)
 ```bash
 export LLM_PROVIDER="custom"
-export LLM_API_KEY="your-api-key-here"  # Optional
+export LLM_API_KEY="your-api-key-here"
 export LLM_API_ENDPOINT="http://localhost:8000/v1/chat/completions"
 export LLM_MODEL="llama3"
-export LLM_AUTH_HEADER="Authorization"  # Optional, defaults to "Authorization"
-export LLM_AUTH_PREFIX="Bearer "  # Optional, defaults to "Bearer "
-zig build run
+cd semantic_graph
+iex -S mix
 ```
 
-#### Advanced Configuration
+#### Configuration via .env file (recommended)
 
-You can override any provider's default settings:
+For persistent configuration, create a `.env` file in the `semantic_graph/` directory:
 
 ```bash
-# Use Anthropic with a different model
-export ANTHROPIC_API_KEY="your-key"
-export LLM_MODEL="claude-3-opus-20240229"
+# Copy the example file
+cp semantic_graph/.env.example semantic_graph/.env
 
-# Use OpenAI with a custom endpoint (e.g., Azure)
-export LLM_PROVIDER="openai"
-export OPENAI_API_KEY="your-key"
-export LLM_API_ENDPOINT="https://your-resource.openai.azure.com/openai/deployments/your-deployment/chat/completions?api-version=2024-02-15-preview"
-export LLM_MODEL="gpt-4"
+# Edit with your API keys
+# .env file contents:
+ANTHROPIC_API_KEY=your-api-key-here
+LLM_PROVIDER=anthropic
+LLM_MODEL=claude-3-5-sonnet-20241022
 ```
 
-**Environment Variables:**
+**Supported Environment Variables:**
 - `LLM_PROVIDER` - Provider type: `anthropic` (default), `openai`, or `custom`
-- `LLM_MODEL` - Model name to use (provider-specific defaults)
-- `LLM_API_ENDPOINT` - API endpoint URL (provider-specific defaults)
-- `LLM_API_KEY` - API key for custom providers
-- `LLM_AUTH_HEADER` - Authentication header name for custom providers (default: `Authorization`)
-- `LLM_AUTH_PREFIX` - Auth value prefix for custom providers (default: `Bearer `)
-- `ANTHROPIC_API_KEY` - API key for Anthropic (when provider is anthropic)
-- `OPENAI_API_KEY` - API key for OpenAI (when provider is openai)
+- `ANTHROPIC_API_KEY` - API key for Anthropic Claude models
+- `OPENAI_API_KEY` - API key for OpenAI GPT models
+- `LLM_MODEL` - Override default model for selected provider
+- `LLM_API_ENDPOINT` - Custom API endpoint URL
+- `LLM_API_KEY` - API key for custom endpoints
 
 ### Controls
 

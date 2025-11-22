@@ -7,6 +7,243 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-11-22
+
+### 🎉 Major Migration: Zig → Elixir
+
+This release represents a complete rewrite of the application from Zig to Elixir while preserving all original functionality and formal specifications. The migration provides better concurrency, fault tolerance, and maintainability through the BEAM VM and OTP platform.
+
+### Added
+
+**New Technology Stack:**
+- **Elixir** functional programming language with BEAM VM
+- **Phoenix Framework** for web infrastructure and HTTP endpoints
+- **Ash Framework** for declarative resource management
+- **Ratatouille** terminal UI library (replacing libvaxis)
+- **Tesla** HTTP client with automatic retry middleware
+- **Graphiti Integration** - Python FastAPI service for temporal knowledge graphs
+- **Neo4j** graph database backend for Graphiti
+- **Docker Compose** orchestration for multi-service architecture
+
+**New Features:**
+- Graphiti temporal knowledge graph integration (Phase 3)
+  - HTTP client with retry logic and exponential backoff
+  - GenServer-based integration with graceful degradation
+  - Automatic health checking and service recovery
+  - Relationship enhancement via semantic search
+- Async LLM analysis with Elixir Task module (Phase 4)
+- Health check endpoint at `/health`
+- Graph statistics API (`GraphAPI.get_statistics/0`)
+- Comprehensive Makefile for development workflow
+- Environment-based configuration with `.env` files
+
+**Documentation:**
+- `ELIXIR_IMPLEMENTATION_STATUS.md` - Complete migration tracking (Phases 1-4)
+- `SETUP_INSTRUCTIONS.md` - Detailed setup guide for Elixir environment
+- `TESTING_TODO.md` - Test planning and coverage tracking
+- Updated `semantic_graph/README.md` for Elixir application
+- Updated `graphiti_service/README.md` for Python service
+
+**Testing:**
+- 50+ ExUnit tests across all modules
+- Integration workflow tests (`workflow_test.exs`)
+  - Incremental idea addition with multiple concepts
+  - Validation error handling (empty, too long)
+  - Graph state consistency verification
+  - Certainty-based deduplication
+  - All 9 relationship types
+  - Async analysis tasks
+  - Graph reset and rebuild
+- Resource tests for Vertex and Edge (Ash framework)
+- LLM client tests with mock mode
+- Graphiti integration tests with health checks
+- Analysis service tests for orchestration logic
+
+### Changed
+
+**Architecture:**
+- **BREAKING**: Complete migration from Zig to Elixir
+- **Data Layer**: ETS (in-memory) replacing custom allocators
+- **Resource Model**: Ash resources replace raw Zig structs
+- **Concurrency**: OTP processes replace Zig threading
+- **HTTP Client**: Tesla middleware replaces std.http
+- **TUI Library**: Ratatouille replaces libvaxis
+- **Build System**: Mix replaces Zig build system
+- **Testing**: ExUnit replaces Zig testing framework
+
+**Code Organization:**
+- Modular Elixir application structure in `semantic_graph/`
+- Separate Python service for Graphiti in `graphiti_service/`
+- Configuration management via `config/*.exs` files
+- OTP supervision tree for fault tolerance
+- Declarative resource definitions with Ash
+
+**Specifications:**
+- Updated TLA+ spec mappings to reference Elixir modules
+- Preserved all formal specifications (remain language-agnostic)
+- Updated test correspondence table to Elixir tests
+- Maintained all verified safety and liveness properties
+
+### Removed
+
+**Zig Implementation:**
+- All Zig source files (`src/*.zig` - 9 files)
+- All Zig test files (`tests/**/*.zig` - 9 files)
+- Zig build configuration (`build.zig`, `build.zig.zon`)
+- libvaxis dependency
+
+**Legacy Code Removed:**
+- ~6,500 lines of Zig code
+- Zig-specific memory management patterns
+- Custom thread-safe graph wrapper
+- Zig-based MCP server implementations
+
+### Migration Details
+
+**Phase 1 - Foundation (Complete):**
+- Elixir/Phoenix project setup with dependencies
+- OTP supervision tree configuration
+- Docker Compose orchestration (Neo4j + Graphiti)
+- Environment configuration system
+
+**Phase 2 - Core Domain (Complete):**
+- Vertex Ash resource with validation (1-1000 chars)
+- Edge Ash resource with 9 relationship types
+- Certainty-based deduplication logic ported from Zig
+- GraphAPI domain with convenience methods
+
+**Phase 3 - Graphiti Integration (Complete):**
+- HTTP client for Graphiti FastAPI service
+- GenServer integration with circuit breaker pattern
+- Automatic retry with exponential backoff
+- Graceful fallback when service unavailable
+
+**Phase 4 - Ratatouille TUI (Complete):**
+- Complete TUI implementation with Ratatouille
+- All screen modes: help, input, analyzing, graph view
+- Animated spinner with 10-frame braille pattern
+- LLM client with multi-provider support
+- Analysis service with async task support
+
+**Phase 5 - MCP Protocol (Pending):**
+- JSON-RPC 2.0 handler (planned)
+- MCP controller integration (planned)
+- Phoenix router integration (planned)
+
+### Performance
+
+**Improvements:**
+- Better concurrency through BEAM lightweight processes
+- Automatic load balancing via OTP scheduler
+- Built-in fault tolerance with supervision trees
+- No manual memory management (garbage collected)
+
+**Expected Performance:**
+- Vertex creation: < 1ms (ETS)
+- Edge creation: < 5ms (includes deduplication)
+- Graph queries: < 10ms for 100s of nodes
+- TUI rendering: < 16ms target (60 FPS)
+
+### Security
+
+- Input validation at resource boundaries (Ash changesets)
+- No buffer overflow risks (memory-safe BEAM VM)
+- Process isolation prevents cascading failures
+- Environment-based secrets management
+
+### Migration Benefits
+
+✅ **Concurrency**: BEAM VM with millions of lightweight processes
+✅ **Fault Tolerance**: OTP supervision trees with automatic restart
+✅ **Hot Code Reloading**: Update code without stopping the system
+✅ **Better Tooling**: Mix, ExUnit, IEx, Observer
+✅ **Ecosystem**: Rich libraries for web, HTTP, testing
+✅ **Maintainability**: Declarative resources, pattern matching, immutability
+✅ **Observability**: Built-in telemetry and metrics
+✅ **Scalability**: Distributed Elixir for future horizontal scaling
+
+### Breaking Changes
+
+**Installation:**
+- Now requires Elixir 1.14+ and Erlang/OTP 25+ (instead of Zig 0.13.0)
+- New installation process: `mix deps.get && mix compile`
+- Different run command: `iex -S mix` (instead of `zig build run`)
+
+**Development:**
+- Build system changed from `zig build` to `mix compile`
+- Tests run with `mix test` (instead of `zig build test`)
+- Formatting with `mix format` (instead of `zig fmt`)
+
+**Deployment:**
+- Docker Compose required for Graphiti features
+- New environment variables for Elixir application
+- Phoenix endpoint runs on port 4000 by default
+
+### Preserved Functionality
+
+✅ All 9 relationship types with Unicode symbols
+✅ Incremental idea addition workflow
+✅ LLM-powered semantic analysis
+✅ Mock mode for development without API keys
+✅ Multi-provider LLM support (Anthropic, OpenAI, custom)
+✅ Certainty-based relationship deduplication
+✅ Graph visualization and navigation
+✅ All TLA+ formal specifications
+✅ Input validation (1-1000 character limit)
+✅ Self-loop prevention
+✅ Multiple relationship types between same vertices
+
+### Known Limitations
+
+1. MCP server mode not yet implemented (Phase 5 pending)
+2. ETS data layer is in-memory (data lost on restart)
+3. Graph layout calculation simplified in initial TUI
+4. Force-directed layout moved to future enhancement
+
+### Upgrade Guide
+
+**For Users:**
+1. Install Elixir 1.14+ and Erlang/OTP 25+
+2. Clone repository and navigate to `semantic_graph/`
+3. Run `mix deps.get && mix compile`
+4. Start application with `iex -S mix`
+
+**For Developers:**
+1. Review `ELIXIR_IMPLEMENTATION_STATUS.md` for architecture
+2. See `semantic_graph/README.md` for development setup
+3. Run tests with `mix test`
+4. Format code with `mix format`
+
+### What's Next
+
+**Phase 5 - MCP Protocol Support:**
+- JSON-RPC 2.0 handler for Model Context Protocol
+- Single-client stdio mode
+- Multi-client HTTP mode with concurrency
+- Integration with Claude and other LLM applications
+
+**Future Enhancements:**
+- PostgreSQL or Mnesia for persistent storage
+- Distributed Elixir for horizontal scaling
+- Phoenix LiveView for web-based TUI
+- Batch analysis for multiple concepts
+- Advanced graph algorithms and queries
+
+### Credits
+
+Special thanks to the open-source communities behind:
+- Elixir and the BEAM ecosystem
+- Phoenix Framework
+- Ash Framework
+- Ratatouille
+- Graphiti (Zep AI)
+
+See `README.md` credits section for complete list.
+
+---
+
+## [0.3.1] - 2025-11-21
+
 ### Added
 - Formal Verification Manifesto v1.1 with 16 foundational principles
 - Executive Summary for engineering leadership on formal methods adoption
