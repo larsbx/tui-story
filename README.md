@@ -12,18 +12,21 @@ version: 0.4.0
 
 A terminal user interface (TUI) application built with **Elixir**, **Phoenix**, **Ash Framework**, and **Ratatouille** that analyzes semantic relationships between concepts using LLMs and displays them as an interactive graph. Each new concept is automatically compared to all existing concepts, building a rich semantic network incrementally.
 
-> **🎉 Migration Complete**: The application has been successfully migrated from Zig to Elixir (Phases 1-4 complete). The Elixir implementation provides better concurrency, fault tolerance, and maintainability while preserving all the original functionality. See [`ELIXIR_IMPLEMENTATION_STATUS.md`](ELIXIR_IMPLEMENTATION_STATUS.md) for details.
+> **🎉 Migration Complete**: The application has been successfully migrated from Zig to Elixir (Phases 1-4 complete). The Elixir implementation provides better concurrency, fault tolerance, and maintainability while preserving all the original functionality. See [`ELIXIR_IMPLEMENTATION_STATUS.md`](./docs/project/ELIXIR_IMPLEMENTATION_STATUS.md) for details.
 
 ## Documentation
 
 - **[MCP Server Mode](./docs/MCP_SERVER.md)** - Headless Model Context Protocol server documentation
-- **[Changelog](./CHANGELOG.md)** - Version history and release notes
-- **[Examples](./EXAMPLES.md)** - Usage examples across different domains
+- **[Changelog](./docs/project/CHANGELOG.md)** - Version history and release notes
+- **[Examples](./docs/project/EXAMPLES.md)** - Usage examples across different domains
 - **[Architecture](./docs/architecture/)** - Design decisions and diagrams
+- **[Project Analysis](./docs/project/)** - Generated analysis and critique
+  - [GEMINI.md](./docs/project/GEMINI.md) - AI-generated project overview
+  - [CRITIQUE.md](./docs/project/CRITIQUE.md) - AI-generated project critique
   - [System Context Diagram](./docs/architecture/diagrams/system-context.md)
   - [Analysis Workflow](./docs/architecture/diagrams/analysis-workflow.md)
   - [Architecture Decision Records (ADRs)](./docs/architecture/README.md)
-- **[Implementation Summary](./IMPLEMENTATION_SUMMARY.md)** - Recent architectural improvements
+- **[Implementation Summary](./docs/project/IMPLEMENTATION_SUMMARY.md)** - Recent architectural improvements
 - **[Formal Verification](./specs/)** - TLA+ specifications and proofs
   - [Executive Summary](./docs/EXECUTIVE_SUMMARY.md)
 - **[Reference & Manifestos](./docs/reference/manifestos/)** - Philosophy and methodology documents
@@ -347,7 +350,7 @@ export LLM_MODEL="gpt-4"
 
 ## Example Usage
 
-> **For more examples, see [EXAMPLES.md](./EXAMPLES.md)** - Political systems, programming paradigms, scientific theories, machine learning, and economic systems.
+> **For more examples, see [EXAMPLES.md](./docs/project/EXAMPLES.md)** - Political systems, programming paradigms, scientific theories, machine learning, and economic systems.
 
 The application uses an **incremental workflow** where each new concept is automatically analyzed against all existing concepts:
 
@@ -427,7 +430,7 @@ tui-story/
 
 See [ADR-005](./docs/architecture/ADR-005-service-layer-extraction.md) for service layer rationale.
 See [ADR-006](./docs/architecture/ADR-006-graphiti-knowledge-graph-integration.md) for Graphiti integration.
-See [ELIXIR_IMPLEMENTATION_STATUS.md](./ELIXIR_IMPLEMENTATION_STATUS.md) for migration details.
+See [ELIXIR_IMPLEMENTATION_STATUS.md](./docs/project/ELIXIR_IMPLEMENTATION_STATUS.md) for migration details.
 
 ### Data Structures
 
