@@ -20,3 +20,4 @@ book/
 .vale/styles/Vale/
 .vale/styles/write-good/
 .vale/styles/alex/
+.env
