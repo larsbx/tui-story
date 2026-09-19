@@ -19,13 +19,12 @@ Paste what you ran and what it said. A check you did not run is not evidence;
 say so plainly rather than leaving the line blank.
 -->
 
-| Check             | Command                                            | Result  |
-| ----------------- | -------------------------------------------------- | ------- |
-| suite             | `cd semantic_graph && mix test`                    | not run |
-| integration suite | `cd semantic_graph && mix test --only integration` | not run |
-| services up       | `make start && make health`                        | not run |
-| markdown lint     | `markdownlint-cli2 "**/*.md"`                      | not run |
-| book builds       | `mdbook build && mdbook-linkcheck`                 | not run |
+| Check                                               | Command                                                                                                              | Result  |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------- |
+| semantic_graph suite                                | `cd semantic_graph && mix test`                                                                                      | not run |
+| auto_agent compiles                                 | `cd auto_agent && mix compile`                                                                                       | not run |
+| the service's pins resolve and every module imports | `cd graphiti_service && pip install -r requirements.txt && python -c 'import config, models, graphiti_client, main'` | not run |
+| services up, for the integration paths              | `make start && make health`                                                                                          | not run |
 
 ## What this does *not* establish
 
