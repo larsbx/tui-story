@@ -15,7 +15,7 @@ Semantic graph and agent surfaces: an Ash/Ratatouille TUI over PostgreSQL
 (`semantic_graph`) and a self-modifying agent demo (`auto_agent`), documented
 as an mdBook.
 
-**Language / toolchain:** Elixir 1.17 on OTP 27, with PostgreSQL
+**Language / toolchain:** Elixir 1.17 on OTP 27 with PostgreSQL, plus Gleam 1.18 for kernels
 **CI:** GitHub Actions (`.github/workflows/ci.yml`): one job per project --
   semantic_graph (with a PostgreSQL service) and auto_agent
 
@@ -38,13 +38,19 @@ speculative ones.
    cd semantic_graph && mix test
    ```
 
-2. auto_agent compiles —
+2. the Gleam kernel suite —
+
+   ```sh
+   cd semantic_graph && MIX_ENV=test mix gleam.test
+   ```
+
+3. auto_agent compiles —
 
    ```sh
    cd auto_agent && mix compile
    ```
 
-3. PostgreSQL is up for local work —
+4. PostgreSQL is up for local work —
 
    ```sh
    make start && make health
@@ -71,6 +77,17 @@ environment that reports a skip is honest; one that reports a pass is not.
   from starting (`Ratatouille.Window` needs a tty), points Tesla at
   `Tesla.Mock`, and runs each test in a sandboxed transaction that is rolled
   back.
+- Kernels are Gleam, per the estate policy, and ADR-008 is the spike that
+  proved the toolchain rather than assuming it: Gleam compiles inside the Ash
+  application, both suites run, and the versions are pinned.
+  `SemanticGraph.CertaintyBand` is the only module permitted to call across
+  the boundary, and it maps each Gleam variant explicitly so a new one breaks
+  loudly instead of falling through.
+- STANDING RISK -- `mix_gleam` 0.6.2 was published in November 2023 and is the
+  newest release, while Gleam has since gone 1.0 and reached 1.18.1. It works,
+  and CI pins it, but an archive is a machine-local install rather than a
+  dependency. If it breaks, run `gleam build` directly and point `erlc_paths`
+  at its output.
 - STANDING GAP -- markdown is not linted and Elixir is not format-checked. The
   repository's own docs carry roughly 1,900 markdownlint violations across 41
   files and no `.ex` file has ever been formatted, so either gate could only
