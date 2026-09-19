@@ -2,7 +2,10 @@
 
 ## Status
 
-Proposed
+Superseded by [ADR-007](./ADR-007-postgres-as-the-graph-store.md).
+
+This ADR never moved past Proposed. What was built from it is described, and
+retired, in ADR-007.
 
 ## Context
 

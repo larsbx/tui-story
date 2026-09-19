@@ -162,13 +162,6 @@ defmodule SemanticGraph.TUI do
     ideas_count = length(model.ideas)
     edges_count = if model.graph, do: length(model.graph.edges), else: 0
 
-    graphiti_enabled =
-      try do
-        SemanticGraph.Graphiti.Integration.enabled?()
-      rescue
-        _ -> false
-      end
-
     view do
       panel(title: "Semantic Relationship Graph Analyzer", height: :fill) do
         row do
@@ -219,17 +212,6 @@ defmodule SemanticGraph.TUI do
               end
             end
 
-            if graphiti_enabled do
-              label(content: "")
-              label(content: "Graphiti: ✓ Connected", attributes: [color(:green)])
-            else
-              label(content: "")
-
-              label(
-                content: "Graphiti: ✗ Unavailable (using fallback mode)",
-                attributes: [color(:yellow)]
-              )
-            end
           end
         end
       end

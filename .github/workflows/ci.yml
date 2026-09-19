@@ -1,10 +1,10 @@
 name: CI
 
 # This workflow used to build and test a Zig project. There is no Zig in this
-# repository -- it was replaced by the Elixir and Python code below, and the
-# workflow was never updated, so every run from 2025-11 onward failed on a
-# missing src/ directory rather than on anything real. What follows exercises
-# the code that is actually here.
+# repository -- it was replaced by the Elixir code below, and the workflow was
+# never updated, so every run from 2025-11 onward failed on a missing src/
+# directory rather than on anything real. What follows exercises the code that
+# is actually here.
 
 on:
   push:
@@ -15,6 +15,28 @@ jobs:
   semantic_graph:
     name: semantic_graph (Elixir)
     runs-on: ubuntu-latest
+
+    services:
+      # The graph lives here. `mix test` creates and migrates this database
+      # through the alias in mix.exs before running a single test.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+
     steps:
       - uses: actions/checkout@v4
 
@@ -81,26 +103,3 @@ jobs:
       - name: Compile
         run: mix compile
         working-directory: auto_agent
-
-  graphiti_service:
-    name: graphiti_service (Python)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: pip
-          cache-dependency-path: graphiti_service/requirements.txt
-
-      # This install is itself the check that caught the pins being
-      # unsatisfiable: graphiti-core 0.28.2 needs neo4j>=5.26.0, and the file
-      # still pinned 5.14.0, so pip could not resolve the set at all.
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-        working-directory: graphiti_service
-
-      - name: Every module imports
-        run: python -c "import config, models, graphiti_client, main"
-        working-directory: graphiti_service
