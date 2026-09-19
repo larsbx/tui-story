@@ -17,8 +17,24 @@ defmodule SemanticGraph.Resources.Edge do
 
   use Ash.Resource,
     domain: SemanticGraph.GraphAPI,
-    data_layer: Ash.DataLayer.Ets,
+    data_layer: AshPostgres.DataLayer,
     extensions: [AshJsonApi.Resource]
+
+  postgres do
+    table "edges"
+    repo SemanticGraph.Repo
+
+    references do
+      reference :from_vertex, on_delete: :delete
+      reference :to_vertex, on_delete: :delete
+    end
+
+    check_constraints do
+      check_constraint :to_vertex_id, "edges_no_self_loops",
+        check: "from_vertex_id != to_vertex_id",
+        message: "Self-loops are not allowed"
+    end
+  end
 
   json_api do
     type "edge"
@@ -76,52 +92,24 @@ defmodule SemanticGraph.Resources.Edge do
 
       validate present([:from_vertex_id, :to_vertex_id, :relation_type])
 
-      # Port logic from graph.zig:151-162 - update if higher certainty
-      change fn changeset, _context ->
-        from_id = Ash.Changeset.get_attribute(changeset, :from_vertex_id)
-        to_id = Ash.Changeset.get_attribute(changeset, :to_vertex_id)
-        rel_type = Ash.Changeset.get_attribute(changeset, :relation_type)
-        new_certainty = Ash.Changeset.get_attribute(changeset, :certainty) || 0.5
-
-        # Check for existing edge
-        case find_existing_edge(from_id, to_id, rel_type) do
-          nil ->
-            # No duplicate, proceed with create
-            changeset
-
-          existing_edge ->
-            if existing_edge.certainty < new_certainty do
-              # Update existing edge with higher certainty
-              new_description = Ash.Changeset.get_attribute(changeset, :description) ||
-                                existing_edge.description
-
-              case Ash.Changeset.for_update(
-                existing_edge,
-                :update_certainty,
-                %{certainty: new_certainty, description: new_description}
-              )
-              |> Ash.update() do
-                {:ok, _updated} ->
-                  # Signal that we updated instead of created
-                  Ash.Changeset.add_error(changeset,
-                    field: :from_vertex_id,
-                    message: "Updated existing edge with higher certainty",
-                    vars: [edge_id: existing_edge.id]
-                  )
-
-                {:error, _} ->
-                  # If update fails, proceed with create
-                  changeset
-              end
-            else
-              # Duplicate with equal/higher certainty, skip
-              Ash.Changeset.add_error(changeset,
-                field: :from_vertex_id,
-                message: "Edge already exists with equal or higher certainty (#{existing_edge.certainty})"
-              )
-            end
-        end
-      end
+      # Deduplication by certainty, as one statement instead of a read followed
+      # by a write. The previous version queried for an existing edge inside a
+      # change function and then decided -- two round trips with a window
+      # between them, so two concurrent analyses of the same pair could both see
+      # "no existing edge" and both insert. The :unique_relationship identity
+      # makes that second row impossible rather than merely unlikely, and the
+      # condition below becomes the ON CONFLICT ... WHERE clause:
+      #
+      #   no existing edge                     -> insert
+      #   existing.certainty < incoming        -> update certainty and description
+      #   existing.certainty >= incoming       -> Ash.Error.Changes.StaleRecord
+      #
+      # Inside upsert_condition a bare field is the stored value and
+      # upsert_conflict/1 is the incoming one.
+      upsert? true
+      upsert_identity :unique_relationship
+      upsert_fields [:certainty, :description]
+      upsert_condition expr(certainty < upsert_conflict(:certainty))
     end
 
     update :update_certainty do
@@ -147,34 +135,30 @@ defmodule SemanticGraph.Resources.Edge do
     define :destroy, action: :destroy
   end
 
-  validations do
-    validate fn changeset, _context ->
-      from_id = Ash.Changeset.get_attribute(changeset, :from_vertex_id)
-      to_id = Ash.Changeset.get_attribute(changeset, :to_vertex_id)
-
-      if from_id && to_id && from_id == to_id do
-        {:error, field: :to_vertex_id, message: "Self-loops are not allowed"}
-      else
-        :ok
-      end
-    end
+  identities do
+    # One edge per (from, to, type). The deduplication rule above is expressed
+    # against this identity, and Postgres holds the unique index that makes a
+    # duplicate unrepresentable rather than rejected after the fact.
+    identity :unique_relationship, [:from_vertex_id, :to_vertex_id, :relation_type]
   end
 
-  # Helper function to find existing edge
-  defp find_existing_edge(from_id, to_id, rel_type) do
-    require Ash.Query
+  validations do
+    # Only :create sets the endpoints -- update_certainty accepts
+    # [:certainty, :description] and update_description accepts [:description],
+    # so neither can introduce a self-loop. Running this on them would cost
+    # those actions their atomicity for a check that cannot fire. The database
+    # check constraint above is the guarantee; this is the readable message.
+    validate fn changeset, _context ->
+                 from_id = Ash.Changeset.get_attribute(changeset, :from_vertex_id)
+                 to_id = Ash.Changeset.get_attribute(changeset, :to_vertex_id)
 
-    SemanticGraph.Resources.Edge
-    |> Ash.Query.filter(
-      from_vertex_id == ^from_id and
-      to_vertex_id == ^to_id and
-      relation_type == ^rel_type
-    )
-    |> Ash.read_one(authorize?: false)
-    |> case do
-      {:ok, edge} -> edge
-      _ -> nil
-    end
+                 if from_id && to_id && from_id == to_id do
+                   {:error, field: :to_vertex_id, message: "Self-loops are not allowed"}
+                 else
+                   :ok
+                 end
+               end,
+               on: [:create]
   end
 
   # Symbol mapping for display

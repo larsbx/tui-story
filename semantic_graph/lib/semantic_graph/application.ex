@@ -9,12 +9,12 @@ defmodule SemanticGraph.Application do
   def start(_type, _args) do
     children =
       [
+        # The graph lives in Postgres, so the repo starts before anything reads it
+        SemanticGraph.Repo,
         # Start the Telemetry supervisor
         SemanticGraphWeb.Telemetry,
         # Start the PubSub system
-        {Phoenix.PubSub, name: SemanticGraph.PubSub},
-        # Start Graphiti integration (Phase 3)
-        {SemanticGraph.Graphiti.Integration, []}
+        {Phoenix.PubSub, name: SemanticGraph.PubSub}
         # Start the Phoenix Endpoint (optional for web interface)
         # SemanticGraphWeb.Endpoint,
       ] ++ tui_children()

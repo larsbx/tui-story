@@ -7,7 +7,6 @@ defmodule SemanticGraph.Analysis.Service do
   require Logger
   alias SemanticGraph.LLM.Client
   alias SemanticGraph.Resources.{Vertex, Edge}
-  alias SemanticGraph.Graphiti
 
   @doc """
   Analyze a new idea against all existing ideas.
@@ -24,10 +23,18 @@ defmodule SemanticGraph.Analysis.Service do
   Creates vertex, analyzes relationships, creates edges.
   """
   def analyze_new_idea(content) do
-    # 1. Create new vertex
-    {:ok, vertex} = Vertex.add_idea(%{content: content, group: 0})
+    # Content that fails validation -- empty, or longer than the 1000 character
+    # limit -- is a caller error, and the caller gets it back. Matching {:ok, _}
+    # here turned a validation failure into a MatchError that took the calling
+    # process down, which is also why no vertex was ever rolled back.
+    case Vertex.add_idea(%{content: content, group: 0}) do
+      {:ok, vertex} -> analyze_against_existing(vertex, content)
+      {:error, reason} -> {:error, reason}
+    end
+  end
 
-    # 2. Get all existing vertices (excluding the new one)
+  defp analyze_against_existing(vertex, content) do
+    # Get all existing vertices (excluding the new one)
     existing_vertices =
       Vertex.list_all!()
       |> Enum.reject(&(&1.id == vertex.id))
@@ -44,25 +51,11 @@ defmodule SemanticGraph.Analysis.Service do
         "Analyzing '#{content}' against #{length(existing_vertices)} existing concepts"
       )
 
-      {:ok, llm_relationships} = Client.analyze_relationships(content, existing_contents)
-
-      # 4. Optionally enhance with Graphiti
-      graphiti_relationships =
-        case Graphiti.Integration.enhance_relationships(content, existing_contents) do
-          {:ok, rels} ->
-            Logger.debug("Graphiti provided #{length(rels)} additional relationships")
-            rels
-
-          _ ->
-            []
-        end
-
-      # 5. Combine and deduplicate relationships
-      all_relationships = llm_relationships ++ graphiti_relationships
+      {:ok, all_relationships} = Client.analyze_relationships(content, existing_contents)
 
       Logger.info("Found #{length(all_relationships)} total relationships")
 
-      # 6. Create edges in graph
+      # 4. Create edges in graph
       edges =
         Enum.map(all_relationships, fn rel ->
           from_vertex = find_vertex_by_content(rel.from, [vertex | existing_vertices])
@@ -84,18 +77,15 @@ defmodule SemanticGraph.Analysis.Service do
                 edge
 
               {:error, reason} ->
-                Logger.warn("Failed to create edge: #{inspect(reason)}")
+                Logger.warning("Failed to create edge: #{inspect(reason)}")
                 nil
             end
           else
-            Logger.warn("Could not find vertices for relationship: #{inspect(rel)}")
+            Logger.warning("Could not find vertices for relationship: #{inspect(rel)}")
             nil
           end
         end)
         |> Enum.reject(&is_nil/1)
-
-      # 7. Sync to Graphiti for temporal knowledge
-      Graphiti.Integration.sync_concept(content)
 
       Logger.info("Analysis complete: created #{length(edges)} relationships")
 

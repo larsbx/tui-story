@@ -3,7 +3,7 @@ defmodule SemanticGraph.Integration.WorkflowTest do
   Integration tests for the complete workflow of incremental idea addition.
   Ported from tests/integration/workflow_test.zig
   """
-  use ExUnit.Case
+  use SemanticGraph.DataCase
 
   alias SemanticGraph.Analysis.Service
   alias SemanticGraph.Resources.{Vertex, Edge}
@@ -173,8 +173,8 @@ defmodule SemanticGraph.Integration.WorkflowTest do
         description: "High certainty"
       })
 
-      # Should update the existing edge
-      assert {:error, _} = result
+      # Should update the existing edge, and say so
+      assert {:ok, _} = result
 
       # Verify only one edge exists with highest certainty
       edges = Edge.list_all!()
@@ -223,7 +223,7 @@ defmodule SemanticGraph.Integration.WorkflowTest do
 
       assert stats.vertex_count == 3
       assert stats.edge_count >= 0
-      assert is_map(stats.edge_types_count)
+      assert is_map(stats.edges_by_type)
       assert stats.average_certainty >= 0.0 or stats.average_certainty == nil
     end
   end

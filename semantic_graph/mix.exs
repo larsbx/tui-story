@@ -44,6 +44,7 @@ defmodule SemanticGraph.MixProject do
       # Ash Framework
       {:ash, "~> 3.0"},
       {:ash_json_api, "~> 1.0"},
+      {:ash_postgres, "~> 2.0"},
 
       # TUI
       {:ratatouille, "~> 0.5.0"},
@@ -74,8 +75,10 @@ defmodule SemanticGraph.MixProject do
   # See the documentation for `Mix` for more info on aliases.
   defp aliases do
     [
-      setup: ["deps.get"],
-      test: ["test"]
+      setup: ["deps.get", "ecto.create", "ecto.migrate"],
+      "ecto.setup": ["ecto.create", "ecto.migrate"],
+      "ecto.reset": ["ecto.drop", "ecto.setup"],
+      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"]
     ]
   end
 end

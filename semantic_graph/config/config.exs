@@ -8,7 +8,10 @@
 import Config
 
 config :semantic_graph,
+  ecto_repos: [SemanticGraph.Repo],
   generators: [timestamp_type: :utc_datetime]
+
+config :semantic_graph, :ash_domains, [SemanticGraph.GraphAPI]
 
 # Configures the endpoint
 config :semantic_graph, SemanticGraphWeb.Endpoint,

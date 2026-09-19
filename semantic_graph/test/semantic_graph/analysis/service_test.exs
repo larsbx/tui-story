@@ -1,5 +1,5 @@
 defmodule SemanticGraph.Analysis.ServiceTest do
-  use ExUnit.Case
+  use SemanticGraph.DataCase
   alias SemanticGraph.Analysis.Service
   alias SemanticGraph.Resources.{Vertex, Edge}
 
