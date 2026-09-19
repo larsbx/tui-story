@@ -86,7 +86,7 @@ defmodule SemanticGraph.Resources.Vertex do
   end
 
   validations do
-    validate numeral_in_range(:group, 0..1)
+    validate numericality(:group, greater_than_or_equal_to: 0, less_than_or_equal_to: 1)
   end
 
   identities do

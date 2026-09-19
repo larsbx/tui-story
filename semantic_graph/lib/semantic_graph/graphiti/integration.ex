@@ -148,10 +148,18 @@ defmodule SemanticGraph.Graphiti.Integration do
   # Private Helpers
 
   defp check_health do
+    # A health probe that raises must still read as "not healthy". This runs in
+    # init/1, so letting an exception escape takes the supervisor down with it
+    # -- which is how an unreachable service, or a Tesla adapter that refuses
+    # the call, became a boot failure rather than the fallback mode below.
     case Client.health_check() do
       {:ok, true} -> true
       _ -> false
     end
+  rescue
+    _ -> false
+  catch
+    :exit, _ -> false
   end
 
   defp schedule_health_check do

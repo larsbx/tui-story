@@ -127,7 +127,10 @@ defmodule SemanticGraph.Resources.Edge do
     update :update_certainty do
       accept [:certainty, :description]
 
-      validate numeral_in_range(:certainty, 0.0..1.0)
+      validate numericality(:certainty,
+                 greater_than_or_equal_to: 0.0,
+                 less_than_or_equal_to: 1.0
+               )
     end
 
     update :update_description do

@@ -11,6 +11,15 @@ defmodule SemanticGraph.TUI do
   import Ratatouille.View
   import Ratatouille.Constants, only: [key: 1, color: 1, attribute: 1]
 
+  # Ratatouille.Constants.key/1 is a remote call, and Elixir forbids those
+  # inside a pattern. Bind each code to a module attribute, which is evaluated
+  # at compile time, so the clauses in update/2 can match on it.
+  @key_enter key(:enter)
+  @key_esc key(:esc)
+  @key_backspace key(:backspace)
+  @key_arrow_up key(:arrow_up)
+  @key_arrow_down key(:arrow_down)
+
   alias SemanticGraph.GraphAPI
   alias SemanticGraph.Resources.{Vertex, Edge}
 
@@ -81,20 +90,20 @@ defmodule SemanticGraph.TUI do
         model
 
       # Input mode handlers (port from ui.zig:80-119)
-      {:input, {:event, %{key: key(:enter)}}} when model.current_input != "" ->
+      {:input, {:event, %{key: @key_enter}}} when model.current_input != "" ->
         handle_idea_submission(model)
 
-      {:input, {:event, %{key: key(:esc)}}} ->
+      {:input, {:event, %{key: @key_esc}}} ->
         %{model | mode: :help, current_input: "", error_message: nil}
 
-      {:input, {:event, %{key: key(:backspace)}}} ->
+      {:input, {:event, %{key: @key_backspace}}} ->
         %{model | current_input: String.slice(model.current_input, 0..-2//1)}
 
       {:input, {:event, %{ch: ch}}} when ch >= 32 and ch < 127 ->
         %{model | current_input: model.current_input <> <<ch::utf8>>}
 
       # Analyzing mode
-      {:analyzing, {:event, %{key: key(:esc)}}} ->
+      {:analyzing, {:event, %{key: @key_esc}}} ->
         # Cancel analysis task if running
         if model.analysis_task do
           Task.shutdown(model.analysis_task, :brutal_kill)
@@ -103,16 +112,16 @@ defmodule SemanticGraph.TUI do
         %{model | mode: :help, analysis_task: nil}
 
       # Viewing graph mode (port from ui.zig:130-158)
-      {:viewing_graph, {:event, %{key: key(:esc)}}} ->
+      {:viewing_graph, {:event, %{key: @key_esc}}} ->
         %{model | mode: :help}
 
       {:viewing_graph, {:event, %{ch: ?h}}} ->
         %{model | mode: :help}
 
-      {:viewing_graph, {:event, %{key: key(:arrow_up)}}} ->
+      {:viewing_graph, {:event, %{key: @key_arrow_up}}} ->
         %{model | selected_edge: move_selection(model.selected_edge, :up, model.graph)}
 
-      {:viewing_graph, {:event, %{key: key(:arrow_down)}}} ->
+      {:viewing_graph, {:event, %{key: @key_arrow_down}}} ->
         %{model | selected_edge: move_selection(model.selected_edge, :down, model.graph)}
 
       {:viewing_graph, {:event, %{ch: ?q}}} ->
@@ -147,6 +156,19 @@ defmodule SemanticGraph.TUI do
   # Rendering Functions
 
   defp render_help(model) do
+    # The Ratatouille view DSL turns each expression in a block into a child
+    # element, so a binding made inside one block is not in scope for its
+    # siblings. Compute these before the view and let the blocks close over them.
+    ideas_count = length(model.ideas)
+    edges_count = if model.graph, do: length(model.graph.edges), else: 0
+
+    graphiti_enabled =
+      try do
+        SemanticGraph.Graphiti.Integration.enabled?()
+      rescue
+        _ -> false
+      end
+
     view do
       panel(title: "Semantic Relationship Graph Analyzer", height: :fill) do
         row do
@@ -162,14 +184,10 @@ defmodule SemanticGraph.TUI do
             label(content: "")
             label(content: "Status:", attributes: [color(:yellow)])
 
-            ideas_count = length(model.ideas)
-
             label(
               content: "  Ideas in graph: #{ideas_count}",
               attributes: [color(if ideas_count > 0, do: :green, else: :white)]
             )
-
-            edges_count = if model.graph, do: length(model.graph.edges), else: 0
 
             label(
               content: "  Relationships found: #{edges_count}",
@@ -200,14 +218,6 @@ defmodule SemanticGraph.TUI do
                 label(content: "  #{idx}. #{idea}")
               end
             end
-
-            # Show Graphiti status
-            graphiti_enabled =
-              try do
-                SemanticGraph.Graphiti.Integration.enabled?()
-              rescue
-                _ -> false
-              end
 
             if graphiti_enabled do
               label(content: "")

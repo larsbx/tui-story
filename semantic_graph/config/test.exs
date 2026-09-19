@@ -12,3 +12,11 @@ config :logger, level: :warning
 
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
+
+# The TUI needs a terminal; the test run does not have one.
+config :semantic_graph, start_tui: false
+
+# The suite drives the Graphiti client with Tesla.Mock. Without this the client
+# falls back to the default adapter and makes real HTTP calls, so every mocked
+# expectation fails and each one first burns the retry and timeout middleware.
+config :tesla, adapter: Tesla.Mock

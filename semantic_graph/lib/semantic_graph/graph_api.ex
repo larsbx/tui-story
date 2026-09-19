@@ -34,6 +34,10 @@ defmodule SemanticGraph.GraphAPI do
 
   use Ash.Domain
 
+  # Ash.Query.filter/2 is a macro; without this require the expressions
+  # below are parsed as ordinary function calls and fail to compile.
+  require Ash.Query
+
   resources do
     resource SemanticGraph.Resources.Vertex do
       # Define any domain-specific customizations here
