@@ -1,17 +1,9 @@
-zig-out/
-zig-cache/
-.zig-cache/
 *.o
 *.a
 *.so
 *.dylib
 *.exe
 .DS_Store
-
-# Zig installation files
-zig-linux-*/
-zig-macos-*/
-*.tar.xz
 
 # mdBook output
 book/
@@ -21,3 +13,7 @@ book/
 .vale/styles/write-good/
 .vale/styles/alex/
 .env
+
+# Python bytecode
+__pycache__/
+*.py[cod]
