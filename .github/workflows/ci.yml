@@ -47,6 +47,15 @@ jobs:
         with:
           otp-version: '27.3'
           elixir-version: '1.17.3'
+          # Kernels here are Gleam. See ADR-008 and, for the estate rule,
+          # agent-icm context/30-stack/10-gleam-kernels.md.
+          gleam-version: '1.18.1'
+
+      # mix_gleam is a Mix *archive* -- a machine-local install, not a
+      # dependency -- so nothing in the repository records which version built
+      # this unless it is pinned here. 0.6.2 is the newest published (2023-11).
+      - name: Install the mix_gleam archive
+        run: mix archive.install hex mix_gleam 0.6.2 --force
 
       # ratatouille -> ex_termbox builds its C library with a vendored copy of
       # waf that opens files in mode 'rU', which Python removed in 3.11. The
@@ -60,8 +69,9 @@ jobs:
           path: |
             semantic_graph/deps
             semantic_graph/_build
-          key: ${{ runner.os }}-otp27-mix-${{ hashFiles('semantic_graph/mix.lock') }}
-          restore-keys: ${{ runner.os }}-otp27-mix-
+            semantic_graph/build
+          key: ${{ runner.os }}-otp27-gleam1.18.1-mix-${{ hashFiles('semantic_graph/mix.lock', 'semantic_graph/gleam.toml') }}
+          restore-keys: ${{ runner.os }}-otp27-gleam1.18.1-mix-
 
       - name: Fetch dependencies
         run: mix deps.get
@@ -71,8 +81,16 @@ jobs:
         run: mix compile
         working-directory: semantic_graph
 
-      - name: Test
+      # ExUnit first: its alias creates and migrates the database that
+      # `mix gleam.test` then needs, because that task starts the application.
+      - name: Test (ExUnit)
         run: mix test
+        working-directory: semantic_graph
+
+      - name: Test (Gleam)
+        run: mix gleam.test
+        env:
+          MIX_ENV: test
         working-directory: semantic_graph
 
   auto_agent:

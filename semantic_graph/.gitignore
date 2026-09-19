@@ -47,3 +47,6 @@ npm-debug.log
 *.swp
 *.swo
 *~
+
+# Gleam build artefacts
+build/
