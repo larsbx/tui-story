@@ -19,12 +19,11 @@ Paste what you ran and what it said. A check you did not run is not evidence;
 say so plainly rather than leaving the line blank.
 -->
 
-| Check                                               | Command                                                                                                              | Result  |
-| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------- |
-| semantic_graph suite                                | `cd semantic_graph && mix test`                                                                                      | not run |
-| auto_agent compiles                                 | `cd auto_agent && mix compile`                                                                                       | not run |
-| the service's pins resolve and every module imports | `cd graphiti_service && pip install -r requirements.txt && python -c 'import config, models, graphiti_client, main'` | not run |
-| services up, for the integration paths              | `make start && make health`                                                                                          | not run |
+| Check                                                                        | Command                         | Result  |
+| ---------------------------------------------------------------------------- | ------------------------------- | ------- |
+| semantic_graph suite; the alias creates and migrates the test database first | `cd semantic_graph && mix test` | not run |
+| auto_agent compiles                                                          | `cd auto_agent && mix compile`  | not run |
+| PostgreSQL is up for local work                                              | `make start && make health`     | not run |
 
 ## What this does *not* establish
 

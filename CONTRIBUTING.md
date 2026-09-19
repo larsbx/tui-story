@@ -6,16 +6,18 @@ Hand-edits here are drift and `make estate-check` fails on them.
 
 # Contributing to tui-story
 
-Semantic graph and agent surfaces: two Elixir projects (`semantic_graph`,
-`auto_agent`) plus a Python Graphiti service, documented as an mdBook.
+Semantic graph and agent surfaces: an Ash/Ratatouille TUI over PostgreSQL
+(`semantic_graph`) and a self-modifying agent demo (`auto_agent`), documented
+as an mdBook.
 
-**Language / toolchain:** Elixir 1.17 on OTP 27, and Python 3.11 (`graphiti_service`)
-**CI:** GitHub Actions (`.github/workflows/ci.yml`): one job per project -- semantic_graph, auto_agent, graphiti_service
+**Language / toolchain:** Elixir 1.17 on OTP 27, with PostgreSQL
+**CI:** GitHub Actions (`.github/workflows/ci.yml`): one job per project --
+  semantic_graph (with a PostgreSQL service) and auto_agent
 
 Read these first — they are normative, not background:
 
 - `README.md`
-- `docs/`
+- `docs/architecture/`
 - `specs/`
 
 ---
@@ -25,7 +27,8 @@ Read these first — they are normative, not background:
 Run these before you open a pull request. Paste what they said into the PR's
 evidence table.
 
-1. semantic_graph suite —
+1. semantic_graph suite; the alias creates and migrates the test database
+   first —
 
    ```sh
    cd semantic_graph && mix test
@@ -37,13 +40,7 @@ evidence table.
    cd auto_agent && mix compile
    ```
 
-3. the service's pins resolve and every module imports —
-
-   ```sh
-   cd graphiti_service && pip install -r requirements.txt && python -c 'import config, models, graphiti_client, main'
-   ```
-
-4. services up, for the integration paths —
+3. PostgreSQL is up for local work —
 
    ```sh
    make start && make health
@@ -57,16 +54,17 @@ the pull request template has a place for exactly that.
 - The toolchain is pinned and it matters: `mix.lock` carries cowlib 2.20,
   whose `maybe` expression needs OTP 27, and `ratatouille -> ex_termbox`
   builds its C library with a vendored waf that needs Python 3.10 or older. CI
-  pins both; a local run that skips either will fail for reasons that have
-  nothing to do with the change.
-- The suite runs headless. `config/test.exs` keeps the TUI from starting,
-  because `Ratatouille.Window` cannot open a tty in CI, and points Tesla at
-  `Tesla.Mock` so the Graphiti tests stop making real HTTP calls.
-- STANDING GAP -- 17 of 65 tests in `semantic_graph` fail. They are
-  pre-existing defects, uncovered when the project compiled for the first
-  time: mostly tests that stop a supervised GenServer and start their own,
-  plus four Ash errors. CI is red, and red is the honest reading until they
-  are fixed.
+  pins both; a local run that skips either fails for reasons unrelated to the
+  change.
+- The graph is in PostgreSQL, and its two structural rules are in the schema:
+  a unique index on `(from_vertex_id, to_vertex_id, relation_type)` and a
+  `no_self_loops` check constraint. Both are tested by inserting through raw
+  SQL rather than through the Ash action, because the claim is about what the
+  graph can contain, not about what one action checks.
+- The suite runs headless and hermetically: `config/test.exs` keeps the TUI
+  from starting (`Ratatouille.Window` needs a tty), points Tesla at
+  `Tesla.Mock`, and runs each test in a sandboxed transaction that is rolled
+  back.
 - STANDING GAP -- markdown is not linted and Elixir is not format-checked. The
   repository's own docs carry roughly 1,900 markdownlint violations across 41
   files and no `.ex` file has ever been formatted, so either gate could only
@@ -81,9 +79,12 @@ the pull request template has a place for exactly that.
   in `Set up job` on a retired `upload-artifact@v3` before it linted anything.
 - Never claim a green run covers the TUI. The TUI is the one part the suite
   cannot exercise, because it needs a terminal and CI has none.
-- Never let Dependabot bump a pin here unreviewed. `graphiti-core` went 0.3.0
-  -> 0.28.2 while `neo4j==5.14.0` stayed put, leaving `requirements.txt`
-  unresolvable by pip -- and CI was too broken to notice.
+- Never signal success by returning an error. `add_relationship` used to
+  report an in-place certainty update as `{:error, _}`, so the caller logged
+  every upgrade as a failure and dropped it; see ADR-007.
+- Never reintroduce a second datastore or a second language without an ADR.
+  ADR-006 proposed one, what got built never used the library it named, and it
+  contributed no relationship to any graph before ADR-007 retired it.
 
 These are not style preferences. Each one is settled somewhere in the documents
 above; changing one is a decision record, not a pull request comment.
