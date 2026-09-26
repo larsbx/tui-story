@@ -8,7 +8,10 @@
 import Config
 
 config :semantic_graph,
+  ecto_repos: [SemanticGraph.Repo],
   generators: [timestamp_type: :utc_datetime]
+
+config :semantic_graph, :ash_domains, [SemanticGraph.GraphAPI]
 
 # Configures the endpoint
 config :semantic_graph, SemanticGraphWeb.Endpoint,
@@ -25,6 +28,12 @@ config :semantic_graph, SemanticGraphWeb.Endpoint,
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
+
+# Ash requires an explicit choice for how string length is counted, so that the
+# `string_length` validation in Elixir and a data layer's own length function
+# cannot disagree. Codepoints is the recommended setting: it is how SQL data
+# layers count, so `max_length` also bounds the size of what gets stored.
+config :ash, default_string_length_count: :codepoints
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason

@@ -62,8 +62,11 @@ A terminal user interface (TUI) application built with **Elixir**, **Phoenix**, 
 
 ## Requirements
 
-- **Elixir** 1.14+ and **Erlang/OTP** 25+
-- **Docker** and **Docker Compose** (for Neo4j and Graphiti service)
+- **Elixir** 1.17+ and **Erlang/OTP** 27+ (OTP 27 is required: `cowlib` uses
+  the `maybe` expression and will not compile on 25 or 26)
+- **PostgreSQL** 14+ — `docker compose up -d` brings one up
+- **Python** 3.10 or older on `PATH` when compiling, for the vendored `waf`
+  that `ex_termbox` builds its C library with
 - Terminal with Unicode support
 - (Optional) API key for LLM provider (Anthropic, OpenAI, or custom)
 
@@ -80,13 +83,13 @@ cd tui-story
 make setup
 # Edit .env with your API keys
 
-# 3. Start services (Neo4j + Graphiti)
+# 3. Start PostgreSQL
 make start
 
-# 4. Install Elixir dependencies
+# 4. Install dependencies and create the schema
 cd semantic_graph
 mix deps.get
-mix compile
+mix ecto.create && mix ecto.migrate
 
 # 5. Run the TUI application
 iex -S mix
@@ -157,9 +160,6 @@ semantic_graph/test/
     │   └── client_test.exs              # API client and mock tests
     ├── analysis/                        # Analysis service tests
     │   └── service_test.exs             # Orchestration logic tests
-    ├── graphiti/                        # Graphiti integration tests
-    │   ├── client_test.exs              # HTTP client tests
-    │   └── integration_test.exs         # GenServer integration tests
     └── integration/                     # End-to-end tests
         └── workflow_test.exs            # Incremental idea workflow tests
 ```
@@ -191,10 +191,10 @@ The Elixir test suite includes:
   - Multi-idea relationship analysis
   - Async task execution
 
-- **Graphiti Integration** (6+ tests):
-  - Health check scenarios
-  - Concept syncing
-  - Graceful degradation
+- **Database constraints** (2 tests):
+  - A duplicate relationship cannot be inserted, tested through raw SQL so it
+    shows the database refuses it rather than the action checking for it
+  - A self-loop cannot be inserted
 
 - **Integration Workflows** (15+ tests):
   - Incremental idea addition
@@ -262,16 +262,19 @@ The Ratatouille TUI will start automatically. Use the keyboard shortcuts listed 
 
 For complete MCP server documentation, see **[MCP Server Mode](./docs/MCP_SERVER.md)**.
 
-### Run Graphiti Services (Optional):
+### Run PostgreSQL
 
-For enhanced semantic analysis with temporal knowledge graphs:
+The graph is persisted, so the database has to be up:
 
 ```bash
-# Start Neo4j and Graphiti service
+# Start PostgreSQL
 make start
 
-# Check service health
+# Check it is reachable
 make health
+
+# Create/refresh the schema
+make db-setup
 
 # View logs
 make logs
@@ -284,14 +287,14 @@ The application supports multiple LLM providers. Without configuration, it uses 
 #### Anthropic (default)
 ```bash
 export ANTHROPIC_API_KEY="your-api-key-here"
-zig build run
+iex -S mix
 ```
 
 #### OpenAI
 ```bash
 export LLM_PROVIDER="openai"
 export OPENAI_API_KEY="your-api-key-here"
-zig build run
+iex -S mix
 ```
 
 #### Custom API (e.g., local LLM, Ollama, etc.)
@@ -302,7 +305,7 @@ export LLM_API_ENDPOINT="http://localhost:8000/v1/chat/completions"
 export LLM_MODEL="llama3"
 export LLM_AUTH_HEADER="Authorization"  # Optional, defaults to "Authorization"
 export LLM_AUTH_PREFIX="Bearer "  # Optional, defaults to "Bearer "
-zig build run
+iex -S mix
 ```
 
 #### Advanced Configuration
@@ -404,9 +407,7 @@ tui-story/
 │   │   │   │   └── client.ex            # LLM API client (Tesla, retry logic)
 │   │   │   ├── analysis/
 │   │   │   │   └── service.ex           # Analysis orchestration
-│   │   │   ├── graphiti/
-│   │   │   │   ├── client.ex            # Graphiti HTTP client
-│   │   │   │   └── integration.ex       # Graphiti GenServer integration
+│   │   │   ├── repo.ex                  # Ecto repo backing every resource
 │   │   │   └── tui.ex                   # Ratatouille TUI application
 │   │   └── semantic_graph_web/
 │   │       ├── endpoint.ex              # Phoenix HTTP endpoint
@@ -416,20 +417,18 @@ tui-story/
 │   │           ├── health_controller.ex # Health check endpoint
 │   │           └── (MCP in Phase 5)     # MCP JSON-RPC controller
 │   ├── config/                          # Environment configuration
+│   ├── priv/repo/migrations/            # Schema migrations
 │   ├── test/                            # ExUnit test suite
 │   └── mix.exs                          # Project dependencies
-├── graphiti_service/                    # Python FastAPI service
-│   ├── main.py                          # FastAPI application
-│   ├── graphiti_client.py               # Neo4j/Graphiti client
-│   └── models.py                        # Pydantic models
 ├── docs/architecture/                   # Architecture documentation & ADRs
 ├── specs/                               # TLA+ formal specifications
-├── docker-compose.yml                   # Service orchestration
+├── docker-compose.yml                   # PostgreSQL for local development
 └── Makefile                             # Convenience commands
 ```
 
 See [ADR-005](./docs/architecture/ADR-005-service-layer-extraction.md) for service layer rationale.
-See [ADR-006](./docs/architecture/ADR-006-graphiti-knowledge-graph-integration.md) for Graphiti integration.
+See [ADR-007](./docs/architecture/ADR-007-postgres-as-the-graph-store.md) for why the graph
+lives in PostgreSQL and why Graphiti/Neo4j were retired (superseding ADR-006).
 See [ELIXIR_IMPLEMENTATION_STATUS.md](./docs/project/ELIXIR_IMPLEMENTATION_STATUS.md) for migration details.
 
 ### Data Structures
@@ -637,8 +636,8 @@ Built with:
 - [Ash Framework](https://ash-hq.org/) - Declarative resource framework
 - [Ratatouille](https://github.com/ndreynolds/ratatouille) - Terminal UI library
 - [Tesla](https://github.com/elixir-tesla/tesla) - HTTP client
-- [Graphiti](https://github.com/getzep/graphiti) - Temporal knowledge graph (Python)
-- [Neo4j](https://neo4j.com/) - Graph database
+- [AshPostgres](https://github.com/ash-project/ash_postgres) - PostgreSQL data layer
+- [PostgreSQL](https://www.postgresql.org/) - Where the graph lives
 
 Originally prototyped with:
 - [Zig](https://ziglang.org/) - Systems programming language (migrated to Elixir in v0.4.0)

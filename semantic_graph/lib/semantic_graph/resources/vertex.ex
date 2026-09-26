@@ -12,8 +12,13 @@ defmodule SemanticGraph.Resources.Vertex do
 
   use Ash.Resource,
     domain: SemanticGraph.GraphAPI,
-    data_layer: Ash.DataLayer.Ets,
+    data_layer: AshPostgres.DataLayer,
     extensions: [AshJsonApi.Resource]
+
+  postgres do
+    table "vertices"
+    repo SemanticGraph.Repo
+  end
 
   json_api do
     type "vertex"
@@ -86,7 +91,7 @@ defmodule SemanticGraph.Resources.Vertex do
   end
 
   validations do
-    validate numeral_in_range(:group, 0..1)
+    validate numericality(:group, greater_than_or_equal_to: 0, less_than_or_equal_to: 1)
   end
 
   identities do
@@ -94,10 +99,12 @@ defmodule SemanticGraph.Resources.Vertex do
     # identity :unique_content, [:content]
   end
 
+  aggregates do
+    count :outgoing_edge_count, :outgoing_edges
+    count :incoming_edge_count, :incoming_edges
+  end
+
   calculations do
-    calculate :edge_count, :integer, expr(
-      fragment("SELECT COUNT(*) FROM ? WHERE from_vertex_id = ? OR to_vertex_id = ?",
-        SemanticGraph.Resources.Edge, id, id)
-    )
+    calculate :edge_count, :integer, expr(outgoing_edge_count + incoming_edge_count)
   end
 end

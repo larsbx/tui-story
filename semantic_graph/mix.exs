@@ -1,13 +1,25 @@
 defmodule SemanticGraph.MixProject do
   use Mix.Project
 
+  @app :semantic_graph
+
   def project do
     [
-      app: :semantic_graph,
+      app: @app,
       version: "0.1.0",
       elixir: "~> 1.14",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
+      # Gleam holds kernels: pure, total modules where being wrong is a
+      # violation. See agent-icm context/30-stack/10-gleam-kernels.md, and
+      # docs/architecture/ADR-008-gleam-for-kernels.md for this repository's
+      # adoption. The :gleam compiler runs first; Ash adds no compiler of its
+      # own, so there is nothing for it to collide with.
+      archives: [mix_gleam: "~> 0.6"],
+      compilers: [:gleam | Mix.compilers()],
+      erlc_paths: ["build/dev/erlang/#{@app}/_gleam_artefacts"],
+      erlc_include_path: "build/dev/erlang/#{@app}/include",
+      prune_code_paths: false,
       aliases: aliases(),
       deps: deps()
     ]
@@ -44,6 +56,11 @@ defmodule SemanticGraph.MixProject do
       # Ash Framework
       {:ash, "~> 3.0"},
       {:ash_json_api, "~> 1.0"},
+      {:ash_postgres, "~> 2.0"},
+
+      # Gleam
+      {:gleam_stdlib, "~> 0.34 or ~> 1.0"},
+      {:gleeunit, "~> 1.0", only: [:dev, :test], runtime: false},
 
       # TUI
       {:ratatouille, "~> 0.5.0"},
@@ -74,8 +91,12 @@ defmodule SemanticGraph.MixProject do
   # See the documentation for `Mix` for more info on aliases.
   defp aliases do
     [
-      setup: ["deps.get"],
-      test: ["test"]
+      # gleam.deps.get resolves the Gleam side; both must run.
+      "deps.get": ["deps.get", "gleam.deps.get"],
+      setup: ["deps.get", "ecto.create", "ecto.migrate"],
+      "ecto.setup": ["ecto.create", "ecto.migrate"],
+      "ecto.reset": ["ecto.drop", "ecto.setup"],
+      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"]
     ]
   end
 end

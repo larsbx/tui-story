@@ -1,123 +1,123 @@
 name: CI
 
+# This workflow used to build and test a Zig project. There is no Zig in this
+# repository -- it was replaced by the Elixir code below, and the workflow was
+# never updated, so every run from 2025-11 onward failed on a missing src/
+# directory rather than on anything real. What follows exercises the code that
+# is actually here.
+
 on:
   push:
-    branches: [ main, 'claude/**' ]
+    branches: [main, 'claude/**']
   pull_request:
-    branches: [ main ]
 
 jobs:
-  test:
-    name: Test Suite
+  semantic_graph:
+    name: semantic_graph (Elixir)
     runs-on: ubuntu-latest
 
+    services:
+      # The graph lives here. `mix test` creates and migrates this database
+      # through the alias in mix.exs before running a single test.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Setup Zig
-      uses: goto-bus-stop/setup-zig@v2
-      with:
-        version: 0.13.0
+      # Pinned, not floating: mix.lock carries cowlib 2.20, whose cow_capsule
+      # module uses the `maybe` expression. That needs OTP 27 -- on OTP 25 or 26
+      # the dependency does not compile at all.
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: '27.3'
+          elixir-version: '1.17.3'
+          # Kernels here are Gleam. See ADR-008 and, for the estate rule,
+          # agent-icm context/30-stack/10-gleam-kernels.md.
+          gleam-version: '1.18.1'
 
-    - name: Verify Zig installation
-      run: zig version
+      # mix_gleam is a Mix *archive* -- a machine-local install, not a
+      # dependency -- so nothing in the repository records which version built
+      # this unless it is pinned here. 0.6.2 is the newest published (2023-11).
+      - name: Install the mix_gleam archive
+        run: mix archive.install hex mix_gleam 0.6.2 --force
 
-    - name: Check code formatting
-      run: zig fmt --check src/ tests/
+      # ratatouille -> ex_termbox builds its C library with a vendored copy of
+      # waf that opens files in mode 'rU', which Python removed in 3.11. The
+      # runner's default interpreter is newer, so give waf one it can run under.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-    - name: Build project
-      run: zig build
+      - uses: actions/cache@v4
+        with:
+          path: |
+            semantic_graph/deps
+            semantic_graph/_build
+            semantic_graph/build
+          key: ${{ runner.os }}-otp27-gleam1.18.1-mix-${{ hashFiles('semantic_graph/mix.lock', 'semantic_graph/gleam.toml') }}
+          restore-keys: ${{ runner.os }}-otp27-gleam1.18.1-mix-
 
-    - name: Run unit tests
-      run: zig build test --summary all
+      - name: Fetch dependencies
+        run: mix deps.get
+        working-directory: semantic_graph
 
-    - name: Run tests with verbose output
-      if: failure()
-      run: zig build test --summary all --verbose
+      - name: Compile
+        run: mix compile
+        working-directory: semantic_graph
 
-  lint:
-    name: Lint & Format Check
+      # ExUnit first: its alias creates and migrates the database that
+      # `mix gleam.test` then needs, because that task starts the application.
+      - name: Test (ExUnit)
+        run: mix test
+        working-directory: semantic_graph
+
+      - name: Test (Gleam)
+        run: mix gleam.test
+        env:
+          MIX_ENV: test
+        working-directory: semantic_graph
+
+  auto_agent:
+    name: auto_agent (Elixir)
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Setup Zig
-      uses: goto-bus-stop/setup-zig@v2
-      with:
-        version: 0.13.0
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: '27.3'
+          elixir-version: '1.17.3'
 
-    - name: Check formatting
-      run: |
-        zig fmt --check src/
-        zig fmt --check tests/
+      - uses: actions/cache@v4
+        with:
+          path: |
+            auto_agent/deps
+            auto_agent/_build
+          key: ${{ runner.os }}-otp27-mix-agent-${{ hashFiles('auto_agent/mix.lock') }}
+          restore-keys: ${{ runner.os }}-otp27-mix-agent-
 
-  build-matrix:
-    name: Build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
+      - name: Fetch dependencies
+        run: mix deps.get
+        working-directory: auto_agent
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup Zig
-      uses: goto-bus-stop/setup-zig@v2
-      with:
-        version: 0.13.0
-
-    - name: Build project
-      run: zig build
-
-    - name: Run tests
-      run: zig build test --summary all
-
-  documentation:
-    name: Documentation Checks
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Check Markdown formatting
-      uses: DavidAnson/markdownlint-cli2-action@v14
-      with:
-        globs: '**/*.md'
-        config: '.markdownlint.json'
-
-    - name: Check Markdown links
-      uses: gaurav-nelson/github-action-markdown-link-check@v1
-      with:
-        use-quiet-mode: 'yes'
-        use-verbose-mode: 'no'
-        config-file: '.markdown-link-check.json'
-        folder-path: 'docs/'
-        file-path: './README.md, ./CHANGELOG.md, ./EXAMPLES.md, ./IMPLEMENTATION_SUMMARY.md'
-
-    - name: Setup mdBook
-      uses: peaceiris/actions-mdbook@v1
-      with:
-        mdbook-version: 'latest'
-
-    - name: Install mdBook preprocessors
-      run: |
-        cargo install mdbook-mermaid
-        cargo install mdbook-linkcheck
-
-    - name: Build documentation site
-      run: mdbook build
-
-    - name: Check for broken links in book
-      run: mdbook-linkcheck
-
-    - name: Upload documentation artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: documentation
-        path: book/
-        retention-days: 7
+      # auto_agent has no test directory yet. Compiling is the whole gate here,
+      # and saying so is better than a test step that runs nothing and passes.
+      - name: Compile
+        run: mix compile
+        working-directory: auto_agent

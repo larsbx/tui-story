@@ -1,5 +1,5 @@
 defmodule SemanticGraph.Resources.VertexTest do
-  use ExUnit.Case, async: true
+  use SemanticGraph.DataCase, async: true
 
   alias SemanticGraph.Resources.Vertex
 
@@ -81,7 +81,7 @@ defmodule SemanticGraph.Resources.VertexTest do
   describe "destroy/1" do
     test "deletes vertex" do
       {:ok, vertex} = Vertex.add_idea(%{content: "To be deleted"})
-      assert {:ok, _} = Vertex.destroy(vertex)
+      assert :ok = Vertex.destroy(vertex)
 
       # Verify it's gone
       vertices = Vertex.list_all!()

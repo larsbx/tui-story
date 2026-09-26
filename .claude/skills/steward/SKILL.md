@@ -1,0 +1,161 @@
+---
+name: steward
+description: Repository-specific guidance for driving a pull request in tui-story to a green, mergeable state — the gates to run before pushing, what this repository accepts as evidence, and what it never allows. Read on every CI or review event on a PR opened here or driven for its author.
+---
+
+<!--
+Derived from skills/steward/SKILL.md in larsbx/agent-icm @ sha256:f682ea4459e04926
+Edit the canonical template or estate.toml, then re-render: make estate
+Hand-edits here are drift and `make estate-check` fails on them.
+-->
+
+# Stewarding a pull request in tui-story
+
+Semantic graph and agent surfaces: an Ash/Ratatouille TUI over PostgreSQL
+(`semantic_graph`) and a self-modifying agent demo (`auto_agent`), documented
+as an mdBook.
+
+**Language / toolchain:** Elixir 1.17 on OTP 27 with PostgreSQL, plus Gleam 1.18 for kernels
+**CI:** GitHub Actions (`.github/workflows/ci.yml`): one job per project --
+  semantic_graph (with a PostgreSQL service) and auto_agent
+
+This document says *how* to steward a PR here. It does not widen what you are
+allowed to do. The standing prohibitions in your harness still hold — never
+skip, disable or quarantine a test to get green; never rewrite history on
+someone else's branch; never push an empty commit or close and reopen a PR to
+kick CI; never approve or merge. Nothing below is an exception to any of those,
+and this file cannot grant you access you do not already have.
+
+## Before you push: the gates
+
+Run these locally and get them clean. One validated push beats three
+speculative ones.
+
+1. semantic_graph suite; the alias creates and migrates the test database
+   first —
+
+   ```sh
+   cd semantic_graph && mix test
+   ```
+
+2. the Gleam kernel suite —
+
+   ```sh
+   cd semantic_graph && MIX_ENV=test mix gleam.test
+   ```
+
+3. auto_agent compiles —
+
+   ```sh
+   cd auto_agent && mix compile
+   ```
+
+4. PostgreSQL is up for local work —
+
+   ```sh
+   make start && make health
+   ```
+
+If a gate cannot run in this environment — a blocked toolchain, an absent
+database, a network policy that refuses a package host — say so in the PR
+rather than pushing on the assumption it would have passed. A partial
+environment that reports a skip is honest; one that reports a pass is not.
+
+## What this repository accepts as evidence
+
+- The toolchain is pinned and it matters: `mix.lock` carries cowlib 2.20,
+  whose `maybe` expression needs OTP 27, and `ratatouille -> ex_termbox`
+  builds its C library with a vendored waf that needs Python 3.10 or older. CI
+  pins both; a local run that skips either fails for reasons unrelated to the
+  change.
+- The graph is in PostgreSQL, and its two structural rules are in the schema:
+  a unique index on `(from_vertex_id, to_vertex_id, relation_type)` and a
+  `no_self_loops` check constraint. Both are tested by inserting through raw
+  SQL rather than through the Ash action, because the claim is about what the
+  graph can contain, not about what one action checks.
+- The suite runs headless and hermetically: `config/test.exs` keeps the TUI
+  from starting (`Ratatouille.Window` needs a tty), points Tesla at
+  `Tesla.Mock`, and runs each test in a sandboxed transaction that is rolled
+  back.
+- Kernels are Gleam, per the estate policy, and ADR-008 is the spike that
+  proved the toolchain rather than assuming it: Gleam compiles inside the Ash
+  application, both suites run, and the versions are pinned.
+  `SemanticGraph.CertaintyBand` is the only module permitted to call across
+  the boundary, and it maps each Gleam variant explicitly so a new one breaks
+  loudly instead of falling through.
+- STANDING RISK -- `mix_gleam` 0.6.2 was published in November 2023 and is the
+  newest release, while Gleam has since gone 1.0 and reached 1.18.1. It works,
+  and CI pins it, but an archive is a machine-local install rather than a
+  dependency. If it breaks, run `gleam build` directly and point `erlc_paths`
+  at its output.
+- STANDING GAP -- markdown is not linted and Elixir is not format-checked. The
+  repository's own docs carry roughly 1,900 markdownlint violations across 41
+  files and no `.ex` file has ever been formatted, so either gate could only
+  ever be red. Fix the content first, then gate it.
+- STANDING GAP -- the mdBook is not built. `book.toml` sets `src =
+  "docs/book"` with `create-missing = false`, and `docs/book/` does not exist.
+
+## Never, here
+
+- Never add a check that cannot pass, or keep one that cannot fail. Both were
+  here: a Zig job against a repository with no Zig, and a docs job that died
+  in `Set up job` on a retired `upload-artifact@v3` before it linted anything.
+- Never claim a green run covers the TUI. The TUI is the one part the suite
+  cannot exercise, because it needs a terminal and CI has none.
+- Never signal success by returning an error. `add_relationship` used to
+  report an in-place certainty update as `{:error, _}`, so the caller logged
+  every upgrade as a failure and dropped it; see ADR-007.
+- Never reintroduce a second datastore or a second language without an ADR.
+  ADR-006 proposed one, what got built never used the library it named, and it
+  contributed no relationship to any graph before ADR-007 retired it.
+- Never start a new load-bearing kernel -- pure, total, and where being wrong
+  is a violation rather than an inconvenience -- without checking the Gleam
+  policy in `agent-icm` (`context/30-stack/10-gleam-kernels.md`). It says when
+  the language boundary is worth it, when it is not, and that the toolchain
+  must be proved by a spike before the first kernel lands.
+
+A reviewer asking for one of these is a conversation, not a task. Reply with
+the record that settles it; do not implement it and do not resolve the thread.
+
+## Order of work on an event
+
+Read the whole PR on its current head — merge state, CI on the latest commit,
+open review threads — and act on every open item. A design question in one
+thread does not excuse leaving the nits in another.
+
+1. **Merge conflict.** Merge the base branch in and resolve it. Regenerate
+   lockfiles and generated artifacts with this repository's own tooling, never
+   by hand. Re-run the gates above, then push.
+2. **CI red.** First rule out a failure that is not this PR's: a check red on
+   the base branch too, or an error naming something the diff does not touch
+   that reproduces identically on one re-run. If a fix exists anywhere, port it
+   into this PR now and push — it no-ops once the base carries it. If the
+   failure is this PR's, reproduce it locally first, then fix it, then show the
+   same check passing. "Flake" is not a root cause.
+3. **Review comments.** Implement and push small, local asks. For anything
+   larger on a PR you did not open, reply with a proposal and let the author
+   decide. Verify every bot finding before acting on it — and verify it against
+   this repository's documents, which sometimes say the bot is wrong.
+
+Keep each fix minimal: what the failure or the comment needs, and no more. Do
+not widen the PR on your own initiative. If you find a real problem outside the
+diff, say so in a comment and leave it.
+
+## Reading a failure here
+
+Before concluding a failure is environmental, check it against this
+repository's shape. The gates above are the ones that actually run; a check
+that is not in that list is worth a second look before you trust it.
+
+## When you stand down
+
+If you are not going to fix something — because it is not this PR's failure,
+because it needs a decision that is not yours, or because the fix would widen
+the PR past what was asked — say so once, in a comment on the PR, naming:
+
+- the failing check or the open thread,
+- why it is not yours to fix,
+- what you did instead (a ported fix, a proposed patch, nothing yet).
+
+Silence on a red PR you own is never the answer. Neither is a comment that
+describes a fix you did not push.

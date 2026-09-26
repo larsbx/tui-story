@@ -1,5 +1,5 @@
 defmodule SemanticGraph.Resources.EdgeTest do
-  use ExUnit.Case, async: true
+  use SemanticGraph.DataCase, async: true
 
   alias SemanticGraph.Resources.{Vertex, Edge}
 
@@ -62,6 +62,45 @@ defmodule SemanticGraph.Resources.EdgeTest do
     end
   end
 
+  describe "database constraints" do
+    # The deduplication rule and the self-loop rule are claims about what the
+    # graph can contain, so they are tested against the database directly.
+    # Going through the Ash action would only show the action checks them; these
+    # inserts bypass it entirely, which is the difference between an illegal
+    # state being rejected and being unrepresentable.
+
+    test "a duplicate relationship cannot be inserted", %{v1: v1, v2: v2} do
+      {:ok, _} =
+        Edge.add_relationship(%{
+          from_vertex_id: v1.id,
+          to_vertex_id: v2.id,
+          relation_type: :analogous,
+          certainty: 0.9
+        })
+
+      assert_raise Postgrex.Error, ~r/edges_unique_relationship_index/, fn ->
+        insert_edge_directly(v1.id, v2.id, "analogous")
+      end
+    end
+
+    test "a self-loop cannot be inserted", %{v1: v1} do
+      assert_raise Postgrex.Error, ~r/edges_no_self_loops/, fn ->
+        insert_edge_directly(v1.id, v1.id, "analogous")
+      end
+    end
+  end
+
+  defp insert_edge_directly(from_id, to_id, relation_type) do
+    SemanticGraph.Repo.query!(
+      """
+      INSERT INTO edges
+        (id, from_vertex_id, to_vertex_id, relation_type, certainty, inserted_at, updated_at)
+      VALUES (gen_random_uuid(), $1, $2, $3, 0.1, now(), now())
+      """,
+      [Ecto.UUID.dump!(from_id), Ecto.UUID.dump!(to_id), relation_type]
+    )
+  end
+
   describe "certainty-based deduplication" do
     test "skips duplicate with lower certainty", %{v1: v1, v2: v2} do
       # Create initial edge with high certainty
@@ -113,8 +152,11 @@ defmodule SemanticGraph.Resources.EdgeTest do
         description: "Updated"
       })
 
-      # This should error because it updated instead of created
-      assert {:error, _} = result
+      # The upsert updates in place and returns the edge. It used to signal
+      # "updated" by returning an error, which the caller could not tell apart
+      # from a real failure.
+      assert {:ok, updated} = result
+      assert updated.certainty == 0.9
 
       # Verify edge was updated
       edges = Edge.list_all!()

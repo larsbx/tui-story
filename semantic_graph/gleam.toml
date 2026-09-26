@@ -1,0 +1,12 @@
+# Declared here rather than left to mix_gleam, which generates a gleam.toml
+# carrying only the package name. Gleam 1.18 then warns that gleam/* imports
+# are transitive, and says that will become a compile error in a future
+# version. Naming the dependency directly keeps the build warning-free.
+name = "semantic_graph"
+version = "0.1.0"
+
+[dependencies]
+gleam_stdlib = "~> 1.0"
+
+[dev-dependencies]
+gleeunit = "~> 1.0"
