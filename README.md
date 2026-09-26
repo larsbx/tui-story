@@ -8,7 +8,7 @@ version: 0.4.0
 
 # Semantic Relationship Graph TUI
 
-![CI](https://github.com/larsbx/tui-story/workflows/CI/badge.svg)
+![GitHub review-mirror checks](https://github.com/larsbx/tui-story/actions/workflows/ci.yml/badge.svg)
 
 A terminal user interface (TUI) application built with **Elixir**, **Phoenix**, **Ash Framework**, and **Ratatouille** that analyzes semantic relationships between concepts using LLMs and displays them as an interactive graph. Each new concept is automatically compared to all existing concepts, building a rich semantic network incrementally.
 
@@ -215,12 +215,22 @@ Elixir provides built-in memory safety and fault tolerance through:
 
 ### Continuous Integration
 
-Tests run automatically on every push via GitHub Actions:
-- ✅ All tests must pass
-- ✅ Code formatting must be correct (`mix format --check-formatted`)
-- ✅ Builds verified on Ubuntu
+Forgejo is the source, review, and merge authority, and Woodpecker is the
+canonical CI runner. The canonical pipeline is defined in `.woodpecker.yml`.
 
-See `.github/workflows/ci.yml` for CI configuration.
+GitHub Actions run the same core checks as advisory review-mirror evidence on
+pull requests and mirrored `main` pushes. A green GitHub run does not replace
+Forgejo approval or Woodpecker evidence.
+
+The currently enforced executable gates are:
+
+- the `semantic_graph` ExUnit suite against PostgreSQL;
+- the Gleam kernel suite;
+- compilation of `auto_agent`.
+
+Formatting, Markdown linting, and mdBook builds remain documented standing gaps
+until the existing repository content is repaired enough for those gates to be
+capable of passing.
 
 ### Writing Tests
 

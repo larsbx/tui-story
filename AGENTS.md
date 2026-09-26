@@ -11,8 +11,9 @@ Semantic graph and agent surfaces: an Ash/Ratatouille TUI over PostgreSQL
 as an mdBook.
 
 **Language / toolchain:** Elixir 1.17 on OTP 27 with PostgreSQL, plus Gleam 1.18 for kernels
-**CI:** GitHub Actions (`.github/workflows/ci.yml`): one job per project --
-  semantic_graph (with a PostgreSQL service) and auto_agent
+**CI:** Woodpecker on Forgejo is canonical CI; GitHub Actions
+  (`.github/workflows/ci.yml`) is advisory review-mirror evidence only. Both
+  exercise semantic_graph (with PostgreSQL) and auto_agent gates.
 
 This file is for whoever is working here next, human or otherwise. It states
 what is settled, so that it does not get re-litigated by someone reading only

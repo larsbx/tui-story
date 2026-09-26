@@ -41,8 +41,9 @@ db-reset: ## Drop, recreate and migrate the database
 test: ## Run the suite (creates and migrates the test database first)
 	cd semantic_graph && mix test
 
-test-all: ## Run the suite and compile auto_agent, as CI does
+test-all: ## Run the canonical local test gates
 	cd semantic_graph && mix test
+	cd semantic_graph && MIX_ENV=test mix gleam.test
 	cd auto_agent && mix compile
 
 health: ## Check PostgreSQL is reachable
