@@ -25,7 +25,7 @@ defmodule SemanticGraph.TUI do
 
   # State struct - mirrors ui.zig:10-19
   defmodule State do
-    @type mode :: :help | :input | :analyzing | :viewing_graph
+    @type mode :: :help | :input | :analyzing | :viewing_graph | :confirming_reset
 
     @type t :: %__MODULE__{
             mode: mode(),
@@ -81,9 +81,18 @@ defmodule SemanticGraph.TUI do
         %{model | mode: :viewing_graph, selected_edge: nil}
 
       {:help, {:event, %{ch: ?r}}} ->
-        # TODO: Add confirmation dialog (Phase 4.4)
-        reset_graph()
-        %{model | ideas: [], graph: nil, mode: :help}
+        %{model | mode: :confirming_reset}
+
+      # Destructive reset is a two-step action: request, then explicit confirm.
+      {:confirming_reset, {:event, %{ch: ?y}}} ->
+        :ok = GraphAPI.reset_graph!()
+        %{model | ideas: [], graph: nil, selected_edge: nil, mode: :help}
+
+      {:confirming_reset, {:event, %{ch: ?n}}} ->
+        %{model | mode: :help}
+
+      {:confirming_reset, {:event, %{key: @key_esc}}} ->
+        %{model | mode: :help}
 
       {:help, {:event, %{ch: ?q}}} ->
         Ratatouille.Runtime.shutdown()
@@ -144,6 +153,7 @@ defmodule SemanticGraph.TUI do
       :input -> render_input(model)
       :analyzing -> render_analyzing(model)
       :viewing_graph -> render_graph(model)
+      :confirming_reset -> render_confirming_reset(model)
     end
   end
 
@@ -283,6 +293,30 @@ defmodule SemanticGraph.TUI do
     end
   end
 
+  defp render_confirming_reset(model) do
+    ideas_count = length(model.ideas)
+    edges_count = if model.graph, do: length(model.graph.edges), else: 0
+
+    view do
+      panel(title: "Confirm Reset", height: :fill) do
+        row do
+          column(size: 12) do
+            label(content: "")
+            label(content: "WARNING: You are about to reset all data.", attributes: [color(:red)])
+            label(content: "")
+            label(content: "This will permanently delete:")
+            label(content: "  #{ideas_count} ideas", attributes: [color(:yellow)])
+            label(content: "  #{edges_count} relationships", attributes: [color(:yellow)])
+            label(content: "")
+            label(content: "This action cannot be undone.", attributes: [color(:red)])
+            label(content: "")
+            label(content: "[y] Reset all data  [n] Go back  [Esc] Cancel")
+          end
+        end
+      end
+    end
+  end
+
   defp render_graph(model) do
     view do
       panel(title: "Semantic Relationship Graph", height: :fill) do
@@ -411,11 +445,6 @@ defmodule SemanticGraph.TUI do
   defp valid_idea?(content) do
     length = String.length(content)
     length >= 1 && length <= 1000
-  end
-
-  defp reset_graph do
-    Vertex.list_all!()
-    |> Enum.each(&Ash.destroy!/1)
   end
 
   defp move_selection(nil, :down, graph)
