@@ -1,14 +1,14 @@
 version = 1
 repository = "larsbx/tui-story"
-branch = "polyglot/migration-v1"
+branch = "main"
 boundary_id = "tui-command"
 fail_closed = true
 authority_change = false
 ci_wiring = false
 
 [authority]
-primary_languages = ["Zig"]
-supporting_languages = ["Tcl"]
+primary_languages = ["Elixir"]
+supporting_languages = ["Gleam"]
 canonical_status = "existing-authority-preserved"
 
 [roles]
