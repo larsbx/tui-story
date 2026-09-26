@@ -1,4 +1,8 @@
-name: CI
+name: Review Mirror Checks
+
+# Advisory GitHub mirror checks only. Forgejo is the source, review, and merge
+# authority; Woodpecker is canonical CI. A green run here is supporting review
+# evidence, not canonical acceptance.
 
 # This workflow used to build and test a Zig project. There is no Zig in this
 # repository -- it was replaced by the Elixir code below, and the workflow was
@@ -8,8 +12,9 @@ name: CI
 
 on:
   push:
-    branches: [main, 'claude/**']
+    branches: [main]
   pull_request:
+    branches: [main]
 
 jobs:
   semantic_graph:
