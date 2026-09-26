@@ -38,12 +38,12 @@ steps:
       - mix local.hex --force
       - mix local.rebar --force
       - mix archive.install hex mix_gleam 0.6.2 --force
-      - cd semantic_graph && mix deps.get
-      - cd semantic_graph && mix compile
-      - cd semantic_graph && mix test
-      - cd semantic_graph && MIX_ENV=test mix gleam.test
-      - cd auto_agent && mix deps.get
-      - cd auto_agent && mix compile
+      - (cd semantic_graph && mix deps.get)
+      - (cd semantic_graph && mix compile)
+      - (cd semantic_graph && mix test)
+      - (cd semantic_graph && MIX_ENV=test mix gleam.test)
+      - (cd auto_agent && mix deps.get)
+      - (cd auto_agent && mix compile)
 
 services:
   - name: postgres
