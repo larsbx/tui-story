@@ -1,14 +1,14 @@
 # Polyglot migration scaffold
 
 **Status:** migration scaffold; non-normative and non-executable  
-**Branch:** `polyglot/migration-v1`
+**Integrated branch:** `main`
 
 ## Repository allocation
 
 - **Repository:** `larsbx/tui-story`
-- **Primary language authority:** Zig
-- **Supporting languages:** Tcl
-- **Assigned responsibility:** Minimal native TUI and optional scripting
+- **Primary language authority:** Elixir
+- **Supporting languages:** Gleam
+- **Assigned responsibility:** Elixir/Ash TUI and runtime with bounded Gleam kernels
 
 ## Authority rules
 
