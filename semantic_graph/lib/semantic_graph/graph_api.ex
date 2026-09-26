@@ -127,15 +127,20 @@ defmodule SemanticGraph.GraphAPI do
   WARNING: This deletes all vertices and edges!
   """
   def reset_graph! do
-    # Delete all edges first (due to foreign key constraints)
-    SemanticGraph.Resources.Edge
-    |> Ash.read!(authorize?: false)
-    |> Enum.each(&Ash.destroy!(&1, authorize?: false))
+    {:ok, :ok} =
+      SemanticGraph.Repo.transaction(fn ->
+        # Delete all edges first (due to foreign key constraints), then vertices.
+        # Keeping both phases in one transaction makes reset all-or-nothing.
+        SemanticGraph.Resources.Edge
+        |> Ash.read!(authorize?: false)
+        |> Enum.each(&Ash.destroy!(&1, authorize?: false))
 
-    # Delete all vertices
-    SemanticGraph.Resources.Vertex
-    |> Ash.read!(authorize?: false)
-    |> Enum.each(&Ash.destroy!(&1, authorize?: false))
+        SemanticGraph.Resources.Vertex
+        |> Ash.read!(authorize?: false)
+        |> Enum.each(&Ash.destroy!(&1, authorize?: false))
+
+        :ok
+      end)
 
     :ok
   end
