@@ -1,0 +1,54 @@
+# Canonical CI for the Forgejo source repository.
+# GitHub Actions are advisory review-mirror checks only.
+#
+# Toolchain pins mirror the repository's tested contract:
+#   Elixir 1.17.3 / OTP 27
+#   Gleam 1.18.1
+#   PostgreSQL 16
+#
+# The Bullseye image deliberately supplies Python <= 3.10 for the vendored
+# ex_termbox waf build; newer Python removed the rU mode it still uses.
+
+when:
+  - event: pull_request
+  - event: push
+    branch: main
+
+steps:
+  - name: verify
+    image: hexpm/elixir:1.17.3-erlang-27.3.4.17-debian-bullseye-20260824
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    commands:
+      - apt-get update
+      - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential ca-certificates curl git postgresql-client python3 python-is-python3
+      - rm -rf /var/lib/apt/lists/*
+      - |
+        until pg_isready -h postgres -p 5432 -U postgres; do
+          sleep 1
+        done
+      - |
+        curl -fsSL           https://github.com/gleam-lang/gleam/releases/download/v1.18.1/gleam-v1.18.1-x86_64-unknown-linux-musl.tar.gz           -o /tmp/gleam.tar.gz
+        echo "4955a38c2e8c99457458e2471472ccd5ee3c45bd7637a315ce33bccf0dd75d9e  /tmp/gleam.tar.gz" | sha256sum -c -
+        tar -xzf /tmp/gleam.tar.gz -C /usr/local/bin gleam
+        gleam --version
+      - mix local.hex --force
+      - mix local.rebar --force
+      - mix archive.install hex mix_gleam 0.6.2 --force
+      - cd semantic_graph && mix deps.get
+      - cd semantic_graph && mix compile
+      - cd semantic_graph && mix test
+      - cd semantic_graph && MIX_ENV=test mix gleam.test
+      - cd auto_agent && mix deps.get
+      - cd auto_agent && mix compile
+
+services:
+  - name: postgres
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
