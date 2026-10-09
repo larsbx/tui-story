@@ -8,6 +8,10 @@ version: 0.4.0
 
 # Semantic Relationship Graph TUI
 
+> **Superseded.** The semantic-relation core has moved to
+> [`larsbx/semantic-categorical-oracle`](https://github.com/larsbx/semantic-categorical-oracle)
+> (`Oracle.Concept.*`). See [`MIGRATION.md`](./MIGRATION.md).
+
 ![CI](https://github.com/larsbx/tui-story/workflows/CI/badge.svg)
 
 A terminal user interface (TUI) application built with **Elixir**, **Phoenix**, **Ash Framework**, and **Ratatouille** that analyzes semantic relationships between concepts using LLMs and displays them as an interactive graph. Each new concept is automatically compared to all existing concepts, building a rich semantic network incrementally.
